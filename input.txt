@@ -1,0 +1,13 @@
+@web https://docs.langchain.com/oss/python/langchain/rag
+create the simple rag application 
+1. input only text file
+2. convert into chunks
+3. convert chunks into embeddings 
+4. store the embeddings into local faiss vecotrdb
+5. implemnet cosine similarty search and semantic search for retrival
+6. use retrival @web https://docs.langchain.com/oss/python/langchain/retrieval
+7. take input as question from the user
+8. use various prompt template for input to llm
+9. The prompt template @web https://python.langchain.com/docs/concepts/prompt_templates/
+10. use langchain-groq openai oss opensource model.
+11. pass the prompt to llm to retrieval of the answer
