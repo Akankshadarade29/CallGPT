@@ -5,6 +5,7 @@ langgraph
 langchain-huggingface
 vapi-server-sdk
 
+# RAG Application Dependencies (Simplified)
 langchain>=0.1.0
 faiss-cpu
 scikit-learn
@@ -13,3 +14,4 @@ pandas
 tqdm
 python-dotenv    
 sentence-transformers
+streamlit
