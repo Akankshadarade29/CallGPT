@@ -24,6 +24,7 @@ from backend.prompt_templates.templates import get_qa_prompt
 from backend.llms.init_llms import get_groq_llm, get_openai_llm, get_oss_llm
 from backend.question_input.question import read_question
 from backend.qa_generation.qa import answer_question
+from backend._pipeline.pipeline import build_rag_graph
 
 
 def _need_rebuild(index_dir: str) -> bool:
@@ -78,52 +79,31 @@ def run_rag(
     # Load environment (.env) if present
     load_dotenv(override=False)
 
-    # 1. Load input and chunk
-    docs = load_text_file(input_path)
-    chunks = chunk_documents(docs)
-
-    # 2. Embeddings
-    embeddings = get_embedding_model(embeddings_provider, embeddings_model)
-
-    # 3. Build or load FAISS
-    if rebuild or _need_rebuild(index_dir):
-        build_faiss_from_documents(chunks, embeddings, index_dir=index_dir, use_cosine=True)
-    vstore = load_faiss(index_dir, embeddings)
-
-    # 4. Retriever
-    if search_type == "mmr":
-        retriever = get_retriever(
-            vstore,
-            search_type="mmr",
-            k=k,
-            fetch_k=fetch_k,
-            lambda_mult=lambda_mult,
-        )
-    else:
-        retriever = get_retriever(vstore, search_type="similarity", k=k)
-
-    # 5. Question
+    # Read question before graph run if not provided
     q = question if question else read_question(default="What is the document about?")
 
-    # 6. LLM init
-    llm_provider = llm_provider.lower()
-    if llm_provider == "groq":
-        model = llm_model or "llama-3.1-8b-instant"
-        llm = get_groq_llm(model=model, temperature=temperature)
-    elif llm_provider == "openai":
-        model = llm_model or "gpt-4o-mini"
-        llm = get_openai_llm(model=model, temperature=temperature)
-    elif llm_provider == "oss":
-        model = llm_model or "llama3.1"
-        llm = get_oss_llm(model=model, temperature=temperature)
-    else:
-        raise ValueError(f"Unsupported llm_provider: {llm_provider}")
+    # Build graph and export diagram
+    app = build_rag_graph()
 
-    # 7. Retrieval + Prompt + Answer
-    retrieved_docs = retrieve(retriever, q)
-    prompt = get_qa_prompt(template=template)
-    answer = answer_question(llm, prompt, retrieved_docs, q)
-    return answer
+    # Invoke graph with initial state
+    state = {
+        "input_path": input_path,
+        "index_dir": index_dir,
+        "rebuild": rebuild,
+        "embeddings_provider": embeddings_provider,
+        "embeddings_model": embeddings_model,
+        "llm_provider": llm_provider,
+        "llm_model": llm_model,
+        "temperature": temperature,
+        "search_type": search_type,
+        "k": k,
+        "fetch_k": fetch_k,
+        "lambda_mult": lambda_mult,
+        "template": template,
+        "question": q,
+    }
+    result = app.invoke(state)
+    return result.get("answer", "")
 
 
 def main() -> None:
