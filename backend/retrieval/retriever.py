@@ -19,7 +19,7 @@ def get_retriever(vstore: FAISS, search_type: str = "mmr", **search_kwargs) -> A
     - None.
 
     Examples:
-    >>> # retr = get_retriever(vstore, search_type="similarity", k=4)  # doctest: +SKIP
+    # retr = get_retriever(vstore, search_type="similarity", k=4)  
     """
     return vstore.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
 
@@ -39,6 +39,6 @@ def retrieve(retriever: Any, query: str) -> List[Document]:
     - None.
 
     Examples:
-    >>> # docs = retrieve(retriever, "What is FAISS?")  # doctest: +SKIP
+    # docs = retrieve(retriever, "What is FAISS?")  
     """
     return retriever.invoke(query)

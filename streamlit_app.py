@@ -13,43 +13,32 @@ from backend.embeddings.generate_embeddings import get_embedding_model
 from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
 from backend.retrieval.retriever import get_retriever, retrieve
 from backend.prompt_templates.templates import get_qa_prompt
-from backend.llms.init_llms import get_groq_llm, get_openai_llm, get_oss_llm
+from backend.llms.init_llms import get_groq_llm 
 from backend.qa_generation.qa import answer_question
 from backend._pipeline.pipeline import build_rag_graph
 
 
 load_dotenv(override=False)
 
-st.set_page_config(page_title="RAG Demo", layout="wide")
-st.title("Simple RAG Demo (Dynamic Upload)")
+st.set_page_config(page_title="CallGPT", layout="wide")
+st.title("CallGPT")
 
 if "vstore" not in st.session_state:
     st.session_state.vstore = None
 if "index_dir" not in st.session_state:
-    st.session_state.index_dir = None
-if "embeddings_provider" not in st.session_state:
-    st.session_state.embeddings_provider = "huggingface"
+    st.session_state.index_dir = None 
 if "embeddings_model" not in st.session_state:
-    st.session_state.embeddings_model = None
-if "llm_provider" not in st.session_state:
-    st.session_state.llm_provider = "groq"
+    st.session_state.embeddings_model = "sentence-transformers/all-MiniLM-L6-v2"
 if "llm_model" not in st.session_state:
-    st.session_state.llm_model = None
+    st.session_state.llm_model = "openai/gpt-oss-120b"
 
 # Sidebar controls
 st.sidebar.header("Settings")
+ 
+llm_model = st.sidebar.text_input("LLM Model", value=st.session_state.llm_model)
+llm_temperature = st.sidebar.slider("Temperature", 0.0)
 
-llm_provider = st.sidebar.selectbox("LLM Provider", ["groq", "openai", "oss"], index=["groq", "openai", "oss"].index(st.session_state.llm_provider))
-llm_model_default = {
-    "groq": "llama-3.1-8b-instant",
-    "openai": "gpt-4o-mini",
-    "oss": "llama3.1",
-}[llm_provider]
-llm_model = st.sidebar.text_input("LLM Model", value=st.session_state.llm_model or llm_model_default)
-llm_temperature = st.sidebar.slider("Temperature", 0.0, 1.5, 0.1, 0.1)
-
-emb_provider = st.sidebar.selectbox("Embeddings Provider", ["huggingface", "openai"], index=["huggingface", "openai"].index(st.session_state.embeddings_provider))
-emb_model = st.sidebar.text_input("Embeddings Model (optional)", value=st.session_state.embeddings_model or "")
+emb_model = st.sidebar.text_input("Embeddings Model", value=st.session_state.embeddings_model)
 
 search_type = st.sidebar.radio("Search Type", ["mmr", "similarity"], index=0)
 k = st.sidebar.slider("Top-K", 1, 10, 4)
@@ -88,7 +77,7 @@ with col1:
             try:
                 docs = docs_from_upload(uploaded)
                 chunks = chunk_documents(docs)
-                embeddings = get_embedding_model(emb_provider, emb_model or None)
+                embeddings = get_embedding_model(emb_model or None)
 
                 if persist:
                     idx_dir = make_index_dir(uploaded.getvalue())
@@ -99,10 +88,8 @@ with col1:
                     vstore = FAISS.from_documents(chunks, embeddings)
                     st.session_state.index_dir = None
 
-                st.session_state.vstore = vstore
-                st.session_state.embeddings_provider = emb_provider
+                st.session_state.vstore = vstore 
                 st.session_state.embeddings_model = emb_model or None
-                st.session_state.llm_provider = llm_provider
                 st.session_state.llm_model = llm_model or None
 
                 st.success("Index is ready.")
@@ -160,11 +147,9 @@ if user_input:
             state = {
                 "input_path": st.session_state.get("input_path"),
                 "index_dir": st.session_state.get("index_dir"),
-                "rebuild": False,
-                "embeddings_provider": st.session_state.get("embeddings_provider", "huggingface"),
+                "rebuild": False, 
                 "embeddings_model": st.session_state.get("embeddings_model"),
-                "llm_provider": llm_provider,
-                "llm_model": llm_model or None,
+                "llm_model": st.session_state.get("llm_model"),
                 "temperature": llm_temperature,
                 "search_type": search_type,
                 "k": k,

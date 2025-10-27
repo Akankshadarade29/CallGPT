@@ -27,6 +27,6 @@ def mmr_search(
     - None.
 
     Examples:
-    >>> # docs = mmr_search(vstore, "Tell me about RAG", k=5)  # doctest: +SKIP
+    # docs = mmr_search(vstore, "Tell me about RAG", k=5)  # doctest: +SKIP
     """
     return vstore.max_marginal_relevance_search(query, k=k, fetch_k=fetch_k, lambda_mult=lambda_mult)

@@ -6,9 +6,7 @@ python app.py --input input.txt --rebuild --llm-provider groq --question "What i
 python app.py --input input.txt --search-type similarity --k 5 --template concise
 
 Environment:
-- GROQ_API_KEY for Groq (if --llm-provider groq)
-- OPENAI_API_KEY (and optional OPENAI_BASE_URL) for OpenAI (if --llm-provider openai)
-- Ollama must be running locally for OSS (if --llm-provider oss)
+- GROQ_API_KEY for Groq (if --llm-provider groq) 
 """
 
 import os
@@ -21,7 +19,7 @@ from backend.embeddings.generate_embeddings import get_embedding_model
 from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
 from backend.retrieval.retriever import get_retriever, retrieve
 from backend.prompt_templates.templates import get_qa_prompt
-from backend.llms.init_llms import get_groq_llm, get_openai_llm, get_oss_llm
+from backend.llms.init_llms import get_groq_llm 
 from backend.question_input.question import read_question
 from backend.qa_generation.qa import answer_question
 from backend._pipeline.pipeline import build_rag_graph
@@ -38,10 +36,8 @@ def run_rag(
     input_path: str,
     index_dir: str = "faiss_index",
     rebuild: bool = False,
-    embeddings_provider: str = "huggingface",
-    embeddings_model: str | None = None,
-    llm_provider: str = "groq",
-    llm_model: str | None = None,
+    embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2", 
+    llm_model: str = "openai/gpt-oss-120b",
     temperature: float = 0.1,
     search_type: str = "mmr",
     k: int = 4,
@@ -56,11 +52,9 @@ def run_rag(
     Parameters:
     - input_path (str): Path to input .txt file.
     - index_dir (str): Directory to persist/load FAISS index.
-    - rebuild (bool): Force rebuild of FAISS index.
-    - embeddings_provider (str): One of {"huggingface", "openai"}.
-    - embeddings_model (Optional[str]): Optional embedding model name.
-    - llm_provider (str): One of {"groq", "openai", "oss"}.
-    - llm_model (Optional[str]): Optional LLM model name.
+    - rebuild (bool): Force rebuild of FAISS index. 
+    - embeddings_model (str): embedding model name. 
+    - llm_model (str): LLM model name.
     - temperature (float): LLM sampling temperature.
     - search_type (str): One of {"mmr", "similarity"}.
     - k (int): Top-k to retrieve.
@@ -80,7 +74,7 @@ def run_rag(
     load_dotenv(override=False)
 
     # Read question before graph run if not provided
-    q = question if question else read_question(default="What is the document about?")
+    q = question if question else read_question()
 
     # Build graph and export diagram
     app = build_rag_graph()
@@ -90,9 +84,7 @@ def run_rag(
         "input_path": input_path,
         "index_dir": index_dir,
         "rebuild": rebuild,
-        "embeddings_provider": embeddings_provider,
-        "embeddings_model": embeddings_model,
-        "llm_provider": llm_provider,
+        "embeddings_model": embeddings_model, 
         "llm_model": llm_model,
         "temperature": temperature,
         "search_type": search_type,
@@ -111,12 +103,10 @@ def main() -> None:
     parser.add_argument("--input", type=str, default="input.txt", help="Path to input .txt file")
     parser.add_argument("--index-dir", type=str, default="faiss_index", help="Directory for FAISS index")
     parser.add_argument("--rebuild", action="store_true", help="Force rebuild FAISS index")
+ 
+    parser.add_argument("--embeddings-model", type=str, default="sentence-transformers/all-MiniLM-L6-v2")
 
-    parser.add_argument("--embeddings-provider", type=str, choices=["huggingface", "openai"], default="huggingface")
-    parser.add_argument("--embeddings-model", type=str, default=None)
-
-    parser.add_argument("--llm-provider", type=str, choices=["groq", "openai", "oss"], default="groq")
-    parser.add_argument("--llm-model", type=str, default=None)
+    parser.add_argument("--llm-model", type=str, default="openai/gpt-oss-120b")
     parser.add_argument("--temperature", type=float, default=0.1)
 
     parser.add_argument("--search-type", type=str, choices=["mmr", "similarity"], default="mmr")
@@ -133,9 +123,7 @@ def main() -> None:
         input_path=args.input,
         index_dir=args.index_dir,
         rebuild=args.rebuild,
-        embeddings_provider=args.embeddings_provider,
-        embeddings_model=args.embeddings_model,
-        llm_provider=args.llm_provider,
+        embeddings_model=args.embeddings_model, 
         llm_model=args.llm_model,
         temperature=args.temperature,
         search_type=args.search_type,

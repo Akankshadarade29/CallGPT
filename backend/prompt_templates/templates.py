@@ -16,8 +16,8 @@ def get_qa_prompt(template: Literal["default", "concise"] = "default") -> ChatPr
     - None.
 
     Examples:
-    >>> prompt = get_qa_prompt()
-    >>> isinstance(prompt, ChatPromptTemplate)
+    prompt = get_qa_prompt()
+    isinstance(prompt, ChatPromptTemplate)
     True
     """
     if template == "concise":

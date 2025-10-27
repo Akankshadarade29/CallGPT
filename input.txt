@@ -24,7 +24,7 @@ from backend._pipeline.pipeline import build_rag_graph
 build_rag_graph()
 ```
 
-Implement the chat application
+-- Implement the chat application
 1. streamlit 'message_history' for frontend
 ```python
 message_history = st.session_state.get("message_history", [])
@@ -59,3 +59,17 @@ if user_input:
 ```python
 chatbot = build_rag_graph() # from app.py
 ```
+
+--- Implement the InMemorySaver
+with the thread_id @web https://docs.langchain.com/oss/python/langgraph/persistence#threads
+```python
+from langgraph.checkpoint.memory import InMemorySaver
+
+# Checkpointer
+checkpointer = InMemorySaver()
+
+build_rag_graph()
+{"configurable": {"thread_id": "1"}}
+graph.compile(checkpointer=checkpointer)
+```
+Also main the flow in the frontend

@@ -25,8 +25,8 @@ def chunk_documents(
     - None.
 
     Examples:
-    >>> chunks = chunk_documents([Document(page_content="a" * 3000)])
-    >>> len(chunks) >= 2
+    chunks = chunk_documents([Document(page_content="a" * 3000)])
+    len(chunks) >= 2
     True
     """
     splitter = RecursiveCharacterTextSplitter(

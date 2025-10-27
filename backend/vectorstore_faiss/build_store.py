@@ -28,8 +28,8 @@ def build_faiss_from_documents(
     - Creates directories and files under `index_dir`.
 
     Examples:
-    >>> path = build_faiss_from_documents([], embeddings=None)  # doctest: +SKIP
-    >>> isinstance(path, str)
+    path = build_faiss_from_documents([], embeddings=None) 
+    isinstance(path, str)
     True
     """
     os.makedirs(index_dir, exist_ok=True)
@@ -63,7 +63,7 @@ def load_faiss(index_dir: str, embeddings: Embeddings) -> FAISS:
     - None.
 
     Examples:
-    >>> # vstore = load_faiss("./faiss_index", emb)  # doctest: +SKIP
+    vstore = load_faiss("./faiss_index", emb)  
     """
     missing = [f for f in essential_files if not os.path.exists(os.path.join(index_dir, f))]
     if missing:

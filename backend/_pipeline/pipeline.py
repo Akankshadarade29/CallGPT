@@ -14,7 +14,7 @@ from backend.embeddings.generate_embeddings import get_embedding_model
 from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
 from backend.retrieval.retriever import get_retriever, retrieve
 from backend.prompt_templates.templates import get_qa_prompt
-from backend.llms.init_llms import get_groq_llm, get_openai_llm, get_oss_llm
+from backend.llms.init_llms import get_groq_llm
 from backend.qa_generation.qa import answer_question
 
 
@@ -24,11 +24,9 @@ class RAGState(TypedDict, total=False):
     index_dir: str
     rebuild: bool
 
-    embeddings_provider: str
-    embeddings_model: Optional[str]
+    embeddings_model: str
 
-    llm_provider: str
-    llm_model: Optional[str]
+    llm_model: str
     temperature: float
 
     search_type: str
@@ -71,7 +69,7 @@ def node_chunk(state: RAGState) -> Dict[str, Any]:
 
 
 def node_embeddings(state: RAGState) -> Dict[str, Any]:
-    emb = get_embedding_model(state.get("embeddings_provider", "huggingface"), state.get("embeddings_model"))
+    emb = get_embedding_model(state.get("embeddings_model"))
     return {"embeddings": emb}
 
 
@@ -97,16 +95,10 @@ def node_retriever(state: RAGState) -> Dict[str, Any]:
     return {"retriever": retriever}
 
 
-def node_llm(state: RAGState) -> Dict[str, Any]:
-    provider = state.get("llm_provider", "groq").lower()
+def node_llm(state: RAGState) -> Dict[str, Any]: 
     model = state.get("llm_model")
     temperature = state.get("temperature", 0.1)
-    if provider == "groq":
-        llm = get_groq_llm(model=model or "llama-3.1-8b-instant", temperature=temperature)
-    elif provider == "openai":
-        llm = get_openai_llm(model=model or "gpt-4o-mini", temperature=temperature)
-    else:
-        llm = get_oss_llm(model=model or "llama3.1", temperature=temperature)
+    llm = get_groq_llm(model="openai/gpt-oss-120b", temperature=temperature)
     return {"llm": llm}
 
 

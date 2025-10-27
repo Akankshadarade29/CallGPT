@@ -17,7 +17,7 @@ def _format_context(docs: List[Document]) -> str:
     - None.
 
     Examples:
-    >>> _format_context([Document(page_content="A"), Document(page_content="B")])
+    _format_context([Document(page_content="A"), Document(page_content="B")])
     'A\n\nB'
     """
     return "\n\n".join(d.page_content for d in docs)
@@ -40,7 +40,7 @@ def answer_question(llm, prompt: ChatPromptTemplate, docs: List[Document], quest
     - None.
 
     Examples:
-    >>> # ans = answer_question(llm, prompt, docs, "What is RAG?")  # doctest: +SKIP
+    # ans = answer_question(llm, prompt, docs, "What is RAG?")  
     """
     context = _format_context(docs)
     messages = prompt.format_messages(context=context, question=question)

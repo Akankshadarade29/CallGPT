@@ -1,7 +1,7 @@
 from typing import Optional
 
 
-def read_question(prompt: str = "Enter your question: ", default: Optional[str] = None) -> str:
+def read_question(prompt: str = "Enter your question: ") -> str:
     """
     Purpose: Read a question from standard input with an optional default.
 
@@ -16,7 +16,7 @@ def read_question(prompt: str = "Enter your question: ", default: Optional[str] 
     - Reads from standard input.
 
     Examples:
-    >>> # q = read_question(default="What is RAG?")  # doctest: +SKIP
+    q = read_question(default="What is RAG?")  
     """
     try:
         q = input(prompt).strip()
