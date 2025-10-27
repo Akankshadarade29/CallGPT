@@ -15,7 +15,7 @@ from backend.retrieval.retriever import get_retriever, retrieve
 from backend.prompt_templates.templates import get_qa_prompt
 from backend.llms.init_llms import get_groq_llm, get_openai_llm, get_oss_llm
 from backend.qa_generation.qa import answer_question
- 
+from backend._pipeline.pipeline import build_rag_graph
 
 
 load_dotenv(override=False)
@@ -106,6 +106,22 @@ with col1:
                 st.session_state.llm_model = llm_model or None
 
                 st.success("Index is ready.")
+                # Persist the uploaded content to a stable path for graph-based chat
+                try:
+                    file_bytes = uploaded.getvalue()
+                    content_full = file_bytes.decode("utf-8", errors="ignore")
+                    h = hashlib.sha1(file_bytes).hexdigest()[:12]
+                    uploads_dir = os.path.join("uploads", "ui")
+                    os.makedirs(uploads_dir, exist_ok=True)
+                    input_path = os.path.join(uploads_dir, f"{h}.txt")
+                    with open(input_path, "w", encoding="utf-8") as f:
+                        f.write(content_full)
+
+                    st.session_state.input_path = input_path
+                    # Prepare LangGraph chatbot for chat mode
+                    st.session_state.chatbot = build_rag_graph()
+                except Exception as persist_e:
+                    st.info(f"Saved upload for chat failed (chat still usable without graph): {persist_e}")
             except Exception as e:
                 st.error(f"Failed to build index: {e}")
 
@@ -117,46 +133,54 @@ with col2:
 
 st.divider()
 
-q = st.text_input("Ask a question about the uploaded document")
-ask = st.button("Ask")
+# Chat UI using session message history
+message_history = st.session_state.get("message_history", [])
+if "message_history" not in st.session_state:
+    st.session_state["message_history"] = []
 
-if ask:
-    if st.session_state.vstore is None:
-        st.warning("Please upload a file and build the index first.")
-    elif not q.strip():
-        st.warning("Please enter a question.")
+# Render history
+for message in st.session_state["message_history"]:
+    with st.chat_message(message["role"]):
+        st.text(message["content"])
+
+user_input = st.chat_input("Type here")
+
+if user_input:
+    # Add user message
+    st.session_state["message_history"].append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.text(user_input)
+
+    # Ensure index and chatbot are ready
+    if not st.session_state.get("index_dir") or not st.session_state.get("input_path"):
+        st.warning("Please build the index with an uploaded file first (Persist recommended).")
     else:
         try:
-            if llm_provider == "groq":
-                llm = get_groq_llm(model=llm_model or llm_model_default, temperature=llm_temperature)
-            elif llm_provider == "openai":
-                llm = get_openai_llm(model=llm_model or llm_model_default, temperature=llm_temperature)
-            else:
-                llm = get_oss_llm(model=llm_model or llm_model_default, temperature=llm_temperature)
+            # Build state for graph invocation
+            state = {
+                "input_path": st.session_state.get("input_path"),
+                "index_dir": st.session_state.get("index_dir"),
+                "rebuild": False,
+                "embeddings_provider": st.session_state.get("embeddings_provider", "huggingface"),
+                "embeddings_model": st.session_state.get("embeddings_model"),
+                "llm_provider": llm_provider,
+                "llm_model": llm_model or None,
+                "temperature": llm_temperature,
+                "search_type": search_type,
+                "k": k,
+                "fetch_k": fetch_k,
+                "lambda_mult": lambda_mult,
+                "template": template,
+                "question": user_input,
+            }
+            if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:
+                st.session_state["chatbot"] = build_rag_graph()
 
-            if search_type == "mmr":
-                retriever = get_retriever(
-                    st.session_state.vstore,
-                    search_type="mmr",
-                    k=k,
-                    fetch_k=fetch_k,
-                    lambda_mult=lambda_mult,
-                )
-            else:
-                retriever = get_retriever(st.session_state.vstore, search_type="similarity", k=k)
+            result = st.session_state["chatbot"].invoke(state)
+            ai_message = result.get("answer", "")
 
-            docs = retrieve(retriever, q)
-            prompt = get_qa_prompt(template=template)
-            ans = answer_question(llm, prompt, docs, q)
-
-            st.subheader("Answer")
-            st.write(ans)
-
-            with st.expander("Retrieved Context"):
-                for i, d in enumerate(docs, start=1):
-                    st.markdown(f"**Chunk {i}**")
-                    st.write(d.page_content)
-                    if d.metadata:
-                        st.caption(str(d.metadata))
+            st.session_state["message_history"].append({"role": "assistant", "content": ai_message})
+            with st.chat_message("assistant"):
+                st.text(ai_message)
         except Exception as e:
-            st.error(f"Failed to answer: {e}")
+            st.error(f"Chat failed: {e}")
