@@ -76,7 +76,7 @@ def node_embeddings(state: RAGState) -> Dict[str, Any]:
 def node_vectorstore(state: RAGState) -> Dict[str, Any]:
     index_dir = state.get("index_dir", "faiss_index")
     if state.get("rebuild", False) or _need_rebuild(index_dir):
-        build_faiss_from_documents(state["chunks"], state["embeddings"], index_dir=index_dir, use_cosine=True)
+        build_faiss_from_documents(state["chunks"], state["embeddings"], index_dir=index_dir,)
     vstore = load_faiss(index_dir, state["embeddings"])
     return {"vstore": vstore}
 
@@ -103,7 +103,7 @@ def node_llm(state: RAGState) -> Dict[str, Any]:
 
 
 def node_answer(state: RAGState) -> Dict[str, Any]:
-    prompt = get_qa_prompt(template=state.get("template", "default"))
+    prompt = get_qa_prompt()
     docs = retrieve(state["retriever"], state["question"])
     ans = answer_question(state["llm"], prompt, docs, state["question"])
     return {"answer": ans}

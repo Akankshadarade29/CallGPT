@@ -10,7 +10,7 @@ def build_faiss_from_documents(
     docs: List[Document],
     embeddings: Embeddings,
     index_dir: str = "./faiss_index",
-    use_cosine: bool = True,
+     
 ) -> str:
     """
     Purpose: Build a FAISS vector store from documents and persist it locally.
@@ -19,8 +19,7 @@ def build_faiss_from_documents(
     - docs (List[Document]): The chunked documents to index.
     - embeddings (Embeddings): Embedding model used for encoding documents/queries.
     - index_dir (str): Directory path where the FAISS index will be saved.
-    - use_cosine (bool): Attempt to configure cosine similarity if supported.
-
+   
     Return Value:
     - str: The directory path where the FAISS index is saved.
 
@@ -33,13 +32,12 @@ def build_faiss_from_documents(
     True
     """
     os.makedirs(index_dir, exist_ok=True)
-
     try:
-        from langchain_community.vectorstores.utils import DistanceStrategy  # type: ignore
-        distance = DistanceStrategy.COSINE if use_cosine else DistanceStrategy.L2
-        vstore = FAISS.from_documents(docs, embeddings, distance_strategy=distance)
-    except Exception:
         vstore = FAISS.from_documents(docs, embeddings)
+    except Exception as e:
+        print(f"Failed to build FAISS index: {e}")
+        return None
+    
 
     vstore.save_local(index_dir)
     return index_dir

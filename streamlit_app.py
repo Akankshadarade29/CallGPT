@@ -11,8 +11,7 @@ from langchain_community.vectorstores import FAISS
 from backend.chunking.chunk_text import chunk_documents
 from backend.embeddings.generate_embeddings import get_embedding_model
 from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-from backend.retrieval.retriever import get_retriever, retrieve
-from backend.prompt_templates.templates import get_qa_prompt
+from backend.retrieval.retriever import get_retriever, retrieve 
 from backend.llms.init_llms import get_groq_llm 
 from backend.qa_generation.qa import answer_question
 from backend._pipeline.pipeline import build_rag_graph
@@ -36,7 +35,7 @@ if "llm_model" not in st.session_state:
 st.sidebar.header("Settings")
  
 llm_model = st.sidebar.text_input("LLM Model", value=st.session_state.llm_model)
-llm_temperature = st.sidebar.slider("Temperature", 0.0)
+llm_temperature = st.sidebar.slider("Temperature", 0.5)
 
 emb_model = st.sidebar.text_input("Embeddings Model", value=st.session_state.embeddings_model)
 
@@ -44,8 +43,6 @@ search_type = st.sidebar.radio("Search Type", ["mmr", "similarity"], index=0)
 k = st.sidebar.slider("Top-K", 1, 10, 4)
 fetch_k = st.sidebar.slider("Fetch-K (MMR)", 5, 50, 20)
 lambda_mult = st.sidebar.slider("Lambda (MMR)", 0.0, 1.0, 0.5, 0.05)
-
-template = st.sidebar.selectbox("Prompt Template", ["default", "concise"], index=0)
 
 persist = st.sidebar.checkbox("Persist FAISS to disk", value=True)
 
@@ -81,7 +78,7 @@ with col1:
 
                 if persist:
                     idx_dir = make_index_dir(uploaded.getvalue())
-                    build_faiss_from_documents(chunks, embeddings, index_dir=idx_dir, use_cosine=True)
+                    build_faiss_from_documents(chunks, embeddings, index_dir=idx_dir)
                     vstore = load_faiss(idx_dir, embeddings)
                     st.session_state.index_dir = idx_dir
                 else:
@@ -155,7 +152,6 @@ if user_input:
                 "k": k,
                 "fetch_k": fetch_k,
                 "lambda_mult": lambda_mult,
-                "template": template,
                 "question": user_input,
             }
             if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:

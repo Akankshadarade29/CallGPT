@@ -2,8 +2,7 @@
 Purpose: End-to-end RAG CLI to load a text file, chunk it, embed, persist FAISS, retrieve, and ask an LLM to answer a question.
 
 Usage examples:
-python app.py --input input.txt --rebuild --llm-provider groq --question "What is RAG?"
-python app.py --input input.txt --search-type similarity --k 5 --template concise
+python app.py --input input.txt --rebuild --llm-provider groq --question "What is RAG?" 
 
 Environment:
 - GROQ_API_KEY for Groq (if --llm-provider groq) 
@@ -17,8 +16,7 @@ from backend.input_text.load_text import load_text_file
 from backend.chunking.chunk_text import chunk_documents
 from backend.embeddings.generate_embeddings import get_embedding_model
 from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-from backend.retrieval.retriever import get_retriever, retrieve
-from backend.prompt_templates.templates import get_qa_prompt
+from backend.retrieval.retriever import get_retriever, retrieve 
 from backend.llms.init_llms import get_groq_llm 
 from backend.question_input.question import read_question
 from backend.qa_generation.qa import answer_question
@@ -43,7 +41,6 @@ def run_rag(
     k: int = 4,
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
-    template: str = "default",
     question: str | None = None,
 ) -> str:
     """
@@ -59,8 +56,7 @@ def run_rag(
     - search_type (str): One of {"mmr", "similarity"}.
     - k (int): Top-k to retrieve.
     - fetch_k (int): Candidates fetched for MMR.
-    - lambda_mult (float): Diversity factor for MMR.
-    - template (str): Prompt template variant {"default", "concise"}.
+    - lambda_mult (float): Diversity factor for MMR. 
     - question (Optional[str]): Question text. If None, prompt via stdin.
 
     Return Value:
@@ -91,7 +87,6 @@ def run_rag(
         "k": k,
         "fetch_k": fetch_k,
         "lambda_mult": lambda_mult,
-        "template": template,
         "question": q,
     }
     result = app.invoke(state)
@@ -107,14 +102,13 @@ def main() -> None:
     parser.add_argument("--embeddings-model", type=str, default="sentence-transformers/all-MiniLM-L6-v2")
 
     parser.add_argument("--llm-model", type=str, default="openai/gpt-oss-120b")
-    parser.add_argument("--temperature", type=float, default=0.1)
+    parser.add_argument("--temperature", type=float, default=0.5)
 
     parser.add_argument("--search-type", type=str, choices=["mmr", "similarity"], default="mmr")
     parser.add_argument("--k", type=int, default=4)
     parser.add_argument("--fetch-k", type=int, default=20)
     parser.add_argument("--lambda-mult", type=float, default=0.5)
-
-    parser.add_argument("--template", type=str, choices=["default", "concise"], default="default")
+ 
     parser.add_argument("--question", type=str, default=None)
 
     args = parser.parse_args()
@@ -129,8 +123,7 @@ def main() -> None:
         search_type=args.search_type,
         k=args.k,
         fetch_k=args.fetch_k,
-        lambda_mult=args.lambda_mult,
-        template=args.template,
+        lambda_mult=args.lambda_mult, 
         question=args.question,
     )
 
