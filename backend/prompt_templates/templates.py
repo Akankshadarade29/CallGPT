@@ -19,15 +19,25 @@ def get_qa_prompt() -> ChatPromptTemplate:
     
     return ChatPromptTemplate.from_messages(
         [
-            ("system", "You are a helpful AI assistant. Use ONLY the provided context to answer. If the answer is not present, say you don't know."),
+            (
+                "system",
+                (
+                    "You are CallGPT — a voice-friendly AI support assistant .\n"
+                    "Your role is to assist customers calling the company by giving clear, polite, and accurate spoken-style answers.\n"
+                    "Use ONLY the provided context to answer the question.\n"
+                    "If the answer is not found in the context, say politely that you don’t have that information.\n"
+                    "Keep responses short, natural, and conversational (like talking on a call).\n"
+                    "Do NOT make up information. Do NOT reference 'documents' or 'context' explicitly."
+                ),
+            ),
             (
                 "human",
                 (
-                    "You are given context to answer a question.\n"
                     "Context:\n{context}\n\n"
-                    "Question: {question}\n"
-                    "Provide a helpful, accurate answer with citations to the context when relevant."
+                    "Customer Question: {question}\n\n"
+                    "Answer naturally as if you are speaking to the customer on a call."
                 ),
             ),
         ]
     )
+
