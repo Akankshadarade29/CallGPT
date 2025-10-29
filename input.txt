@@ -64,12 +64,21 @@ chatbot = build_rag_graph() # from app.py
 with the thread_id @web https://docs.langchain.com/oss/python/langgraph/persistence#threads
 ```python
 from langgraph.checkpoint.memory import InMemorySaver
+from uuid import uuid4
+
+# Generate a UUID directly using uuid4()
+thread_id = uuid4()
 
 # Checkpointer
 checkpointer = InMemorySaver()
 
 build_rag_graph()
-{"configurable": {"thread_id": "1"}}
+# st.session_state -> dict -> 
+CONFIG = {'configurable': {'thread_id': 'thread-1'}}
+
+response = chatbot.invoke({'messages': [HumanMessage(content=user_input)]}, config=CONFIG)
+
+
 graph.compile(checkpointer=checkpointer)
 ```
 Also main the flow in the frontend

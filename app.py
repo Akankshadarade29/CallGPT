@@ -11,6 +11,8 @@ Environment:
 import os
 import argparse
 from dotenv import load_dotenv
+from uuid import uuid4
+from langgraph.checkpoint.memory import InMemorySaver
 
 from backend.input_text.load_text import load_text_file
 from backend.chunking.chunk_text import chunk_documents
@@ -73,7 +75,9 @@ def run_rag(
     q = question if question else read_question()
 
     # Build graph and export diagram
-    app = build_rag_graph()
+    checkpointer = InMemorySaver()
+    thread_id = f"cli-{uuid4()}"
+    app = build_rag_graph(checkpointer=checkpointer)
 
     # Invoke graph with initial state
     state = {
@@ -89,7 +93,8 @@ def run_rag(
         "lambda_mult": lambda_mult,
         "question": q,
     }
-    result = app.invoke(state)
+    CONFIG = {"configurable": {"thread_id": thread_id}}
+    result = app.invoke(state, config=CONFIG)
     return result.get("answer", "")
 
 

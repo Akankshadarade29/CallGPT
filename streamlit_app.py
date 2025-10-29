@@ -4,6 +4,8 @@ from typing import Optional, List
 
 import streamlit as st
 from dotenv import load_dotenv
+from uuid import uuid4
+from langgraph.checkpoint.memory import InMemorySaver
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
@@ -30,6 +32,12 @@ if "embeddings_model" not in st.session_state:
     st.session_state.embeddings_model = "sentence-transformers/all-MiniLM-L6-v2"
 if "llm_model" not in st.session_state:
     st.session_state.llm_model = "openai/gpt-oss-120b"
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = str(uuid4())
+if "checkpointer" not in st.session_state:
+    st.session_state.checkpointer = InMemorySaver()
+if "chat_histories" not in st.session_state:
+    st.session_state.chat_histories = {}
 
 # Sidebar controls
 st.sidebar.header("Settings")
@@ -103,7 +111,7 @@ with col1:
 
                     st.session_state.input_path = input_path
                     # Prepare LangGraph chatbot for chat mode
-                    st.session_state.chatbot = build_rag_graph()
+                    st.session_state.chatbot = build_rag_graph(checkpointer=st.session_state.checkpointer)
                 except Exception as persist_e:
                     st.info(f"Saved upload for chat failed (chat still usable without graph): {persist_e}")
             except Exception as e:
@@ -117,10 +125,11 @@ with col2:
 
 st.divider()
 
-# Chat UI using session message history
-message_history = st.session_state.get("message_history", [])
-if "message_history" not in st.session_state:
-    st.session_state["message_history"] = []
+# Chat UI using session message history keyed by thread_id
+tid = st.session_state.get("thread_id")
+if tid not in st.session_state.chat_histories:
+    st.session_state.chat_histories[tid] = []
+st.session_state["message_history"] = st.session_state.chat_histories[tid]
 
 # Render history
 for message in st.session_state["message_history"]:
@@ -155,12 +164,13 @@ if user_input:
                 "question": user_input,
             }
             if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:
-                st.session_state["chatbot"] = build_rag_graph()
-
-            result = st.session_state["chatbot"].invoke(state)
+                st.session_state["chatbot"] = build_rag_graph(checkpointer=st.session_state.checkpointer)
+            CONFIG = {"configurable": {"thread_id": st.session_state.thread_id}}
+            result = st.session_state["chatbot"].invoke(state, config=CONFIG)
             ai_message = result.get("answer", "")
 
             st.session_state["message_history"].append({"role": "assistant", "content": ai_message})
+            st.session_state.chat_histories[tid] = st.session_state["message_history"]
             with st.chat_message("assistant"):
                 st.text(ai_message)
         except Exception as e:
