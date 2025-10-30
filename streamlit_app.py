@@ -17,12 +17,44 @@ from backend.retrieval.retriever import get_retriever, retrieve
 from backend.llms.init_llms import get_groq_llm 
 from backend.qa_generation.qa import answer_question
 from backend._pipeline.pipeline import build_rag_graph
+from backend.conversation.thread_manager import (
+    generate_thread_id,
+    reset_chat,
+    load_conversation,
+    convert_messages_to_chat_history,
+    get_thread_preview,
+    add_thread,
+)
 
 
 load_dotenv(override=False)
 
-st.set_page_config(page_title="CallGPT", layout="wide")
-st.title("CallGPT")
+st.set_page_config(page_title="CallGPT", layout="wide", page_icon="💬")
+
+# Custom CSS for ChatGPT-like UI
+st.markdown("""
+<style>
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #202123;
+    }
+    
+    /* Chat message styling */
+    .stChatMessage {
+        padding: 1rem;
+        border-radius: 0.5rem;
+    }
+    
+    /* Main title */
+    h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("💬 CallGPT")
 
 if "vstore" not in st.session_state:
     st.session_state.vstore = None
@@ -32,27 +64,78 @@ if "embeddings_model" not in st.session_state:
     st.session_state.embeddings_model = "sentence-transformers/all-MiniLM-L6-v2"
 if "llm_model" not in st.session_state:
     st.session_state.llm_model = "openai/gpt-oss-120b"
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = str(uuid4())
 if "checkpointer" not in st.session_state:
     st.session_state.checkpointer = InMemorySaver()
+if "chat_threads" not in st.session_state:
+    st.session_state.chat_threads = []
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = generate_thread_id()
+    st.session_state.chat_threads = add_thread(st.session_state.chat_threads, st.session_state.thread_id)
 if "chat_histories" not in st.session_state:
-    st.session_state.chat_histories = {}
+    st.session_state.chat_histories = {st.session_state.thread_id: []}
+
+# ============ Sidebar: Conversation History ============
+st.sidebar.title("💬 CallGPT")
+
+if st.sidebar.button("➕ New Chat", use_container_width=True, type="primary"):
+    new_tid, new_threads, new_histories = reset_chat(
+        st.session_state.chat_threads,
+        st.session_state.chat_histories,
+    )
+    st.session_state.thread_id = new_tid
+    st.session_state.chat_threads = new_threads
+    st.session_state.chat_histories = new_histories
+    st.rerun()
+
+st.sidebar.divider()
+st.sidebar.subheader("📚 My Conversations")
+
+# Display conversations in reverse chronological order (newest first)
+for thread_id in st.session_state.chat_threads[::-1]:
+    # Get preview for thread
+    if st.session_state.get("chatbot"):
+        preview = get_thread_preview(st.session_state.chatbot, thread_id, max_length=35)
+    else:
+        # Fallback if chatbot not ready
+        preview = f"Thread {thread_id[:8]}..."
+    
+    # Highlight active thread
+    is_active = (thread_id == st.session_state.thread_id)
+    button_type = "primary" if is_active else "secondary"
+    
+    if st.sidebar.button(
+        f"{'🟢 ' if is_active else ''}  {preview}",
+        key=f"thread_{thread_id}",
+        use_container_width=True,
+        type=button_type,
+    ):
+        if thread_id != st.session_state.thread_id:
+            # Switch to this thread
+            st.session_state.thread_id = thread_id
+            
+            # Load conversation from checkpointer if chatbot is ready
+            if st.session_state.get("chatbot"):
+                messages = load_conversation(st.session_state.chatbot, thread_id)
+                chat_history = convert_messages_to_chat_history(messages)
+                st.session_state.chat_histories[thread_id] = chat_history
+            
+            st.rerun()
+
+st.sidebar.divider()
 
 # Sidebar controls
-st.sidebar.header("Settings")
- 
-llm_model = st.sidebar.text_input("LLM Model", value=st.session_state.llm_model)
-llm_temperature = st.sidebar.slider("Temperature", 0.5)
-
-emb_model = st.sidebar.text_input("Embeddings Model", value=st.session_state.embeddings_model)
-
-search_type = st.sidebar.radio("Search Type", ["mmr", "similarity"], index=0)
-k = st.sidebar.slider("Top-K", 1, 10, 4)
-fetch_k = st.sidebar.slider("Fetch-K (MMR)", 5, 50, 20)
-lambda_mult = st.sidebar.slider("Lambda (MMR)", 0.0, 1.0, 0.5, 0.05)
-
-persist = st.sidebar.checkbox("Persist FAISS to disk", value=True)
+with st.sidebar.expander("⚙️ Settings", expanded=False):
+    llm_model = st.text_input("LLM Model", value=st.session_state.llm_model)
+    llm_temperature = st.slider("Temperature", 0.0, 1.0, 0.5)
+    
+    emb_model = st.text_input("Embeddings Model", value=st.session_state.embeddings_model)
+    
+    search_type = st.radio("Search Type", ["mmr", "similarity"], index=0)
+    k = st.slider("Top-K", 1, 10, 4)
+    fetch_k = st.slider("Fetch-K (MMR)", 5, 50, 20)
+    lambda_mult = st.slider("Lambda (MMR)", 0.0, 1.0, 0.5, 0.05)
+    
+    persist = st.checkbox("Persist FAISS to disk", value=True)
 
 # File uploader
 uploaded = st.file_uploader("Upload a .txt file", type=["txt"]) 
@@ -134,7 +217,7 @@ st.session_state["message_history"] = st.session_state.chat_histories[tid]
 # Render history
 for message in st.session_state["message_history"]:
     with st.chat_message(message["role"]):
-        st.text(message["content"])
+        st.markdown(message["content"])
 
 user_input = st.chat_input("Type here")
 
@@ -142,7 +225,7 @@ if user_input:
     # Add user message
     st.session_state["message_history"].append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.text(user_input)
+        st.markdown(user_input)
 
     # Ensure index and chatbot are ready
     if not st.session_state.get("index_dir") or not st.session_state.get("input_path"):
@@ -172,6 +255,6 @@ if user_input:
             st.session_state["message_history"].append({"role": "assistant", "content": ai_message})
             st.session_state.chat_histories[tid] = st.session_state["message_history"]
             with st.chat_message("assistant"):
-                st.text(ai_message)
+                st.markdown(ai_message)
         except Exception as e:
             st.error(f"Chat failed: {e}")
