@@ -2,7 +2,7 @@
 Purpose: End-to-end RAG CLI to load a text file, chunk it, embed, persist FAISS, retrieve, and ask an LLM to answer a question.
 
 Usage examples:
-python app.py --input input.txt --rebuild --llm-provider groq --question "What is RAG?" 
+python -m backend.app --input input.txt --rebuild --question "Where vector is used?"
 
 Environment:
 - GROQ_API_KEY for Groq (if --llm-provider groq) 
@@ -14,15 +14,11 @@ from dotenv import load_dotenv
 from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 
-# from backend.input_text.load_text import load_text_file
-# from backend.chunking.chunk_text import chunk_documents
-# from backend.embeddings.generate_embeddings import get_embedding_model
-# from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-# from backend.retrieval.retriever import get_retriever, retrieve 
-# from backend.llms.init_llms import get_groq_llm 
-from backend import question_input
-# from backend.qa_generation.qa import answer_question
-from backend._pipeline.pipeline import build_rag_graph
+from ._pipeline import pipeline
+
+ 
+from . import question_input
+# from ._pipeline import build_rag_graph
 
 
 def _need_rebuild(index_dir: str) -> bool:
@@ -77,7 +73,7 @@ def run_rag(
     # Build graph and export diagram
     checkpointer = InMemorySaver()
     thread_id = f"cli-{uuid4()}"
-    app = build_rag_graph(checkpointer=checkpointer)
+    app = pipeline.build_rag_graph(checkpointer=checkpointer)
 
     # Invoke graph with initial state
     state = {

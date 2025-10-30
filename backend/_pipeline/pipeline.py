@@ -11,7 +11,7 @@ from langchain_community.vectorstores import FAISS
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
-from backend import input_text, chunking, embeddings, vectorstore_faiss, retrieval, prompt_templates, llms
+from .. import input_text, chunking, embeddings, vectorstore_faiss, retrieval, prompt_templates, llms
 
 
 class RAGState(TypedDict, total=False):
