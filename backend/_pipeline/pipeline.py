@@ -11,14 +11,7 @@ from langchain_community.vectorstores import FAISS
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
-from backend.input_text.load_text import load_text_file
-from backend.chunking.chunk_text import chunk_documents
-from backend.embeddings.generate_embeddings import get_embedding_model
-from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-from backend.retrieval.retriever import get_retriever, retrieve
-from backend.prompt_templates.templates import get_qa_prompt
-from backend.llms.init_llms import get_groq_llm
-from backend.qa_generation.qa import answer_question
+from backend import input_text, chunking, embeddings, vectorstore_faiss, retrieval, prompt_templates, llms
 
 
 class RAGState(TypedDict, total=False):
@@ -61,12 +54,12 @@ def _need_rebuild(index_dir: str) -> bool:
 # Nodes
 
 def node_load(state: RAGState) -> Dict[str, Any]:
-    docs = load_text_file(state["input_path"])
+    docs = input_text.load_text_file(state["input_path"])
     return {"docs": docs}
 
 
 def node_chunk(state: RAGState) -> Dict[str, Any]:
-    chunks = chunk_documents(state["docs"])  # default params
+    chunks = chunking.chunk_documents(state["docs"])  # default params
     return {"chunks": chunks}
 
 
@@ -78,9 +71,9 @@ def node_embeddings(state: RAGState) -> Dict[str, Any]:
 def node_vectorstore(state: RAGState) -> Dict[str, Any]:
     index_dir = state.get("index_dir", "faiss_index")
     # Create embeddings model ephemerally
-    emb = get_embedding_model(state.get("embeddings_model"))
+    emb = embeddings.get_embedding_model(state.get("embeddings_model"))
     if state.get("rebuild", False) or _need_rebuild(index_dir):
-        build_faiss_from_documents(state["chunks"], emb, index_dir=index_dir,)
+        vectorstore_faiss.build_faiss_from_documents(state["chunks"], emb, index_dir=index_dir,)
     # Do not return vstore to state; it's not serializable. Loading will be repeated where needed.
     return {}
 
@@ -96,12 +89,12 @@ def node_llm(state: RAGState) -> Dict[str, Any]:
 
 
 def node_answer(state: RAGState) -> Dict[str, Any]:
-    prompt = get_qa_prompt()
+    prompt = prompt_templates.get_qa_prompt()
     # Ephemerally load vectorstore and create retriever
-    emb = get_embedding_model(state.get("embeddings_model"))
-    vstore = load_faiss(state.get("index_dir", "faiss_index"), emb)
+    emb = embeddings.get_embedding_model(state.get("embeddings_model"))
+    vstore = vectorstore_faiss.load_faiss(state.get("index_dir", "faiss_index"), emb)
     if state.get("search_type", "mmr") == "mmr":
-        retriever = get_retriever(
+        retriever = retrieval.get_retriever(
             vstore,
             search_type="mmr",
             k=state.get("k", 4),
@@ -109,15 +102,15 @@ def node_answer(state: RAGState) -> Dict[str, Any]:
             lambda_mult=state.get("lambda_mult", 0.5),
         )
     else:
-        retriever = get_retriever(vstore, search_type="similarity", k=state.get("k", 4))
+        retriever = retrieval.get_retriever(vstore, search_type="similarity", k=state.get("k", 4))
 
     # Retrieve and answer
-    docs = retrieve(retriever, state["question"])
+    docs = retrieval.retrieve(retriever, state["question"])
     context = "\n\n".join(d.page_content for d in docs)
 
     # Create LLM ephemerally
     temperature = state.get("temperature", 0.1)
-    llm = get_groq_llm(model="openai/gpt-oss-120b", temperature=temperature)
+    llm = llms.get_groq_llm(model="openai/gpt-oss-120b", temperature=temperature)
 
     history = list(state.get("messages", []))  # previous turns
     current = prompt.format_messages(context=context, question=state["question"])

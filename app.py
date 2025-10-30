@@ -14,14 +14,14 @@ from dotenv import load_dotenv
 from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 
-from backend.input_text.load_text import load_text_file
-from backend.chunking.chunk_text import chunk_documents
-from backend.embeddings.generate_embeddings import get_embedding_model
-from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-from backend.retrieval.retriever import get_retriever, retrieve 
-from backend.llms.init_llms import get_groq_llm 
-from backend.question_input.question import read_question
-from backend.qa_generation.qa import answer_question
+# from backend.input_text.load_text import load_text_file
+# from backend.chunking.chunk_text import chunk_documents
+# from backend.embeddings.generate_embeddings import get_embedding_model
+# from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
+# from backend.retrieval.retriever import get_retriever, retrieve 
+# from backend.llms.init_llms import get_groq_llm 
+from backend import question_input
+# from backend.qa_generation.qa import answer_question
 from backend._pipeline.pipeline import build_rag_graph
 
 
@@ -72,7 +72,7 @@ def run_rag(
     load_dotenv(override=False)
 
     # Read question before graph run if not provided
-    q = question if question else read_question()
+    q = question if question else question_input.read_question()
 
     # Build graph and export diagram
     checkpointer = InMemorySaver()

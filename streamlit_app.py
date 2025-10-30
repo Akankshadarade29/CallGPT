@@ -4,27 +4,16 @@ from typing import Optional, List
 
 import streamlit as st
 from dotenv import load_dotenv
-from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 
-from backend.chunking.chunk_text import chunk_documents
-from backend.embeddings.generate_embeddings import get_embedding_model
-from backend.vectorstore_faiss.build_store import build_faiss_from_documents, load_faiss
-from backend.retrieval.retriever import get_retriever, retrieve 
-from backend.llms.init_llms import get_groq_llm 
-from backend.qa_generation.qa import answer_question
+import backend.chunking as chunking
+import backend.embeddings as embeddings
+import backend.vectorstore_faiss as vectorstore_faiss
 from backend._pipeline.pipeline import build_rag_graph
-from backend.conversation.thread_manager import (
-    generate_thread_id,
-    reset_chat,
-    load_conversation,
-    convert_messages_to_chat_history,
-    get_thread_preview,
-    add_thread,
-)
+import backend.conversation as conversation
 
 
 load_dotenv(override=False)
@@ -69,8 +58,8 @@ if "checkpointer" not in st.session_state:
 if "chat_threads" not in st.session_state:
     st.session_state.chat_threads = []
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = generate_thread_id()
-    st.session_state.chat_threads = add_thread(st.session_state.chat_threads, st.session_state.thread_id)
+    st.session_state.thread_id = conversation.generate_thread_id()
+    st.session_state.chat_threads = conversation.add_thread(st.session_state.chat_threads, st.session_state.thread_id)
 if "chat_histories" not in st.session_state:
     st.session_state.chat_histories = {st.session_state.thread_id: []}
 
@@ -78,7 +67,7 @@ if "chat_histories" not in st.session_state:
 st.sidebar.title("💬 CallGPT")
 
 if st.sidebar.button("➕ New Chat", use_container_width=True, type="primary"):
-    new_tid, new_threads, new_histories = reset_chat(
+    new_tid, new_threads, new_histories = conversation.reset_chat(
         st.session_state.chat_threads,
         st.session_state.chat_histories,
     )
@@ -94,7 +83,7 @@ st.sidebar.subheader("📚 My Conversations")
 for thread_id in st.session_state.chat_threads[::-1]:
     # Get preview for thread
     if st.session_state.get("chatbot"):
-        preview = get_thread_preview(st.session_state.chatbot, thread_id, max_length=35)
+        preview = conversation.get_thread_preview(st.session_state.chatbot, thread_id, max_length=35)
     else:
         # Fallback if chatbot not ready
         preview = f"Thread {thread_id[:8]}..."
@@ -115,8 +104,8 @@ for thread_id in st.session_state.chat_threads[::-1]:
             
             # Load conversation from checkpointer if chatbot is ready
             if st.session_state.get("chatbot"):
-                messages = load_conversation(st.session_state.chatbot, thread_id)
-                chat_history = convert_messages_to_chat_history(messages)
+                messages = conversation.load_conversation(st.session_state.chatbot, thread_id)
+                chat_history = conversation.convert_messages_to_chat_history(messages)
                 st.session_state.chat_histories[thread_id] = chat_history
             
             st.rerun()
@@ -164,16 +153,16 @@ with col1:
         if st.button("Build / Update Index", type="primary"):
             try:
                 docs = docs_from_upload(uploaded)
-                chunks = chunk_documents(docs)
-                embeddings = get_embedding_model(emb_model or None)
+                chunks = chunking.chunk_documents(docs)
+                emb_model_obj = embeddings.get_embedding_model(emb_model or None)
 
                 if persist:
                     idx_dir = make_index_dir(uploaded.getvalue())
-                    build_faiss_from_documents(chunks, embeddings, index_dir=idx_dir)
-                    vstore = load_faiss(idx_dir, embeddings)
+                    vectorstore_faiss.build_faiss_from_documents(chunks, emb_model_obj, index_dir=idx_dir)
+                    vstore = vectorstore_faiss.load_faiss(idx_dir, emb_model_obj)
                     st.session_state.index_dir = idx_dir
                 else:
-                    vstore = FAISS.from_documents(chunks, embeddings)
+                    vstore = FAISS.from_documents(chunks, emb_model_obj)
                     st.session_state.index_dir = None
 
                 st.session_state.vstore = vstore 
