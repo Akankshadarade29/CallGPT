@@ -17,7 +17,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from ._pipeline import pipeline
 
  
-from . import question_input
+from . import question_input, streaming
 # from ._pipeline import build_rag_graph
 
 
@@ -70,32 +70,37 @@ def run_rag(
     # Read question before graph run if not provided
     q = question if question else question_input.read_question()
 
-    # Build graph and export diagram
+    # Build graph
     checkpointer = InMemorySaver()
     thread_id = f"cli-{uuid4()}"
     app = pipeline.build_rag_graph(checkpointer=checkpointer)
 
-    # Invoke graph with initial state
-    state = {
+    # Build state for streaming (messages-based)
+    base_state = {
         "input_path": input_path,
         "index_dir": index_dir,
         "rebuild": rebuild,
-        "embeddings_model": embeddings_model, 
+        "embeddings_model": embeddings_model,
         "llm_model": llm_model,
         "temperature": temperature,
         "search_type": search_type,
         "k": k,
         "fetch_k": fetch_k,
         "lambda_mult": lambda_mult,
-        "question": q,
     }
-    CONFIG = {"configurable": {"thread_id": thread_id}}
-    result = app.invoke(state, config=CONFIG)
-    return result.get("answer", "")
+    state = streaming.build_messages_state(q, base_state=base_state)
+
+    # Stream tokens to stdout and accumulate final answer
+    answer_parts = []
+    for piece in streaming.stream_ai_tokens(app, state, thread_id):
+        print(piece, end="", flush=True)
+        answer_parts.append(piece)
+    print()  # newline after streaming
+    return "".join(answer_parts)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Simple RAG CLI")
+    parser = argparse.ArgumentParser(description="CallGPT")
     parser.add_argument("--input", type=str, default="input.txt", help="Path to input .txt file")
     parser.add_argument("--index-dir", type=str, default="faiss_index", help="Directory for FAISS index")
     parser.add_argument("--rebuild", action="store_true", help="Force rebuild FAISS index")
@@ -129,7 +134,6 @@ def main() -> None:
     )
 
     print("\n=== Answer ===\n")
-    print(answer)
 
 
 if __name__ == "__main__":

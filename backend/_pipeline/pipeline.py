@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_community.vectorstores import FAISS
 from langgraph.graph.message import add_messages
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, AIMessageChunk
 
 from .. import input_text, chunking, embeddings, vectorstore_faiss, retrieval, prompt_templates, llms
 
@@ -88,7 +88,7 @@ def node_llm(state: RAGState) -> Dict[str, Any]:
     return {}
 
 
-def node_answer(state: RAGState) -> Dict[str, Any]:
+def node_answer(state: RAGState):
     prompt = prompt_templates.get_qa_prompt()
     # Ephemerally load vectorstore and create retriever
     emb = embeddings.get_embedding_model(state.get("embeddings_model"))
@@ -104,7 +104,7 @@ def node_answer(state: RAGState) -> Dict[str, Any]:
     else:
         retriever = retrieval.get_retriever(vstore, search_type="similarity", k=state.get("k", 4))
 
-    # Retrieve and answer
+    # Retrieve and prepare context
     docs = retrieval.retrieve(retriever, state["question"])
     context = "\n\n".join(d.page_content for d in docs)
 
@@ -116,15 +116,22 @@ def node_answer(state: RAGState) -> Dict[str, Any]:
     current = prompt.format_messages(context=context, question=state["question"])
     messages = [*history, *current]
 
-    resp = llm.invoke(messages)
-    ans = getattr(resp, "content", str(resp))
+    # Stream tokens and yield AI message chunks for smoother UI
+    answer_accum = ""
+    for chunk in llm.stream(messages):
+        delta = getattr(chunk, "content", "")
+        if not delta:
+            continue
+        answer_accum += delta
+        # Emit incremental assistant chunks via the messages channel
+        yield {"messages": [AIMessageChunk(content=delta)]}
 
-    return {
-        "answer": ans,
-        # Append the latest human/AI turn so memory persists per thread
+    # Finalize: return full answer and persist the turn into memory
+    yield {
+        "answer": answer_accum,
         "messages": [
             HumanMessage(content=state["question"]),
-            AIMessage(content=ans),
+            AIMessage(content=answer_accum),
         ],
     }
 

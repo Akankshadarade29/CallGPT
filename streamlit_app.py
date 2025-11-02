@@ -15,6 +15,9 @@ import backend.vectorstore_faiss as vectorstore_faiss
 from backend._pipeline.pipeline import build_rag_graph
 import backend.conversation as conversation
 
+import backend.streaming as streaming
+from langchain_core.messages import HumanMessage, AIMessage
+
 
 load_dotenv(override=False)
 
@@ -221,11 +224,10 @@ if user_input:
         st.warning("Please build the index with an uploaded file first (Persist recommended).")
     else:
         try:
-            # Build state for graph invocation
-            state = {
+            base_state = {
                 "input_path": st.session_state.get("input_path"),
                 "index_dir": st.session_state.get("index_dir"),
-                "rebuild": False, 
+                "rebuild": False,
                 "embeddings_model": st.session_state.get("embeddings_model"),
                 "llm_model": st.session_state.get("llm_model"),
                 "temperature": llm_temperature,
@@ -233,17 +235,21 @@ if user_input:
                 "k": k,
                 "fetch_k": fetch_k,
                 "lambda_mult": lambda_mult,
-                "question": user_input,
             }
             if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:
                 st.session_state["chatbot"] = build_rag_graph(checkpointer=st.session_state.checkpointer)
-            CONFIG = {"configurable": {"thread_id": st.session_state.thread_id}}
-            result = st.session_state["chatbot"].invoke(state, config=CONFIG)
-            ai_message = result.get("answer", "")
+            state = streaming.build_messages_state(user_input, base_state=base_state)
 
+            def ai_only_stream():
+                yield from streaming.stream_ai_tokens(
+                    st.session_state["chatbot"],
+                    state,
+                    st.session_state["thread_id"],
+                )
+
+            with st.chat_message("assistant"):
+                ai_message = st.write_stream(ai_only_stream())
             st.session_state["message_history"].append({"role": "assistant", "content": ai_message})
             st.session_state.chat_histories[tid] = st.session_state["message_history"]
-            with st.chat_message("assistant"):
-                st.markdown(ai_message)
         except Exception as e:
             st.error(f"Chat failed: {e}")
