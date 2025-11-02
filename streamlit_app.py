@@ -9,13 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 
-import backend.chunking as chunking
-import backend.embeddings as embeddings
-import backend.vectorstore_faiss as vectorstore_faiss
-from backend._pipeline.pipeline import build_rag_graph
-import backend.conversation as conversation
-
-import backend.streaming as streaming
+import backend.app as backend_app
 from langchain_core.messages import HumanMessage, AIMessage
 
 
@@ -61,8 +55,8 @@ if "checkpointer" not in st.session_state:
 if "chat_threads" not in st.session_state:
     st.session_state.chat_threads = []
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = conversation.generate_thread_id()
-    st.session_state.chat_threads = conversation.add_thread(st.session_state.chat_threads, st.session_state.thread_id)
+    st.session_state.thread_id = backend_app.conversation.generate_thread_id()
+    st.session_state.chat_threads = backend_app.conversation.add_thread(st.session_state.chat_threads, st.session_state.thread_id)
 if "chat_histories" not in st.session_state:
     st.session_state.chat_histories = {st.session_state.thread_id: []}
 
@@ -70,7 +64,7 @@ if "chat_histories" not in st.session_state:
 st.sidebar.title("💬 CallGPT")
 
 if st.sidebar.button("➕ New Chat", use_container_width=True, type="primary"):
-    new_tid, new_threads, new_histories = conversation.reset_chat(
+    new_tid, new_threads, new_histories = backend_app.conversation.reset_chat(
         st.session_state.chat_threads,
         st.session_state.chat_histories,
     )
@@ -86,7 +80,7 @@ st.sidebar.subheader("📚 My Conversations")
 for thread_id in st.session_state.chat_threads[::-1]:
     # Get preview for thread
     if st.session_state.get("chatbot"):
-        preview = conversation.get_thread_preview(st.session_state.chatbot, thread_id, max_length=35)
+        preview = backend_app.conversation.get_thread_preview(st.session_state.chatbot, thread_id, max_length=35)
     else:
         # Fallback if chatbot not ready
         preview = f"Thread {thread_id[:8]}..."
@@ -107,8 +101,8 @@ for thread_id in st.session_state.chat_threads[::-1]:
             
             # Load conversation from checkpointer if chatbot is ready
             if st.session_state.get("chatbot"):
-                messages = conversation.load_conversation(st.session_state.chatbot, thread_id)
-                chat_history = conversation.convert_messages_to_chat_history(messages)
+                messages = backend_app.conversation.load_conversation(st.session_state.chatbot, thread_id)
+                chat_history = backend_app.conversation.convert_messages_to_chat_history(messages)
                 st.session_state.chat_histories[thread_id] = chat_history
             
             st.rerun()
@@ -156,13 +150,13 @@ with col1:
         if st.button("Build / Update Index", type="primary"):
             try:
                 docs = docs_from_upload(uploaded)
-                chunks = chunking.chunk_documents(docs)
-                emb_model_obj = embeddings.get_embedding_model(emb_model or None)
+                chunks = backend_app.chunking.chunk_documents(docs)
+                emb_model_obj = backend_app.embeddings.get_embedding_model(emb_model or None)
 
                 if persist:
                     idx_dir = make_index_dir(uploaded.getvalue())
-                    vectorstore_faiss.build_faiss_from_documents(chunks, emb_model_obj, index_dir=idx_dir)
-                    vstore = vectorstore_faiss.load_faiss(idx_dir, emb_model_obj)
+                    backend_app.vectorstore_faiss.build_faiss_from_documents(chunks, emb_model_obj, index_dir=idx_dir)
+                    vstore = backend_app.vectorstore_faiss.load_faiss(idx_dir, emb_model_obj)
                     st.session_state.index_dir = idx_dir
                 else:
                     vstore = FAISS.from_documents(chunks, emb_model_obj)
@@ -186,7 +180,7 @@ with col1:
 
                     st.session_state.input_path = input_path
                     # Prepare LangGraph chatbot for chat mode
-                    st.session_state.chatbot = build_rag_graph(checkpointer=st.session_state.checkpointer)
+                    st.session_state.chatbot = backend_app.build_rag_graph(checkpointer=st.session_state.checkpointer)
                 except Exception as persist_e:
                     st.info(f"Saved upload for chat failed (chat still usable without graph): {persist_e}")
             except Exception as e:
@@ -237,11 +231,11 @@ if user_input:
                 "lambda_mult": lambda_mult,
             }
             if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:
-                st.session_state["chatbot"] = build_rag_graph(checkpointer=st.session_state.checkpointer)
-            state = streaming.build_messages_state(user_input, base_state=base_state)
+                st.session_state["chatbot"] = backend_app.build_rag_graph(checkpointer=st.session_state.checkpointer)
+            state = backend_app.streaming.build_messages_state(user_input, base_state=base_state)
 
             def ai_only_stream():
-                yield from streaming.stream_ai_tokens(
+                yield from backend_app.streaming.stream_ai_tokens(
                     st.session_state["chatbot"],
                     state,
                     st.session_state["thread_id"],

@@ -17,8 +17,22 @@ from langgraph.checkpoint.memory import InMemorySaver
 from ._pipeline import pipeline
 
  
-from . import question_input, streaming
+from . import question_input, streaming, chunking, embeddings, vectorstore_faiss, conversation
 # from ._pipeline import build_rag_graph
+
+# Re-export build_rag_graph for convenience
+build_rag_graph = pipeline.build_rag_graph
+
+__all__ = [
+    "run_rag",
+    "build_rag_graph",
+    # feature modules re-exported for UI convenience
+    "chunking",
+    "embeddings",
+    "vectorstore_faiss",
+    "conversation",
+    "streaming",
+]
 
 
 def _need_rebuild(index_dir: str) -> bool:
