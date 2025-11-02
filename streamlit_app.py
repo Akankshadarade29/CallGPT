@@ -52,11 +52,14 @@ if "llm_model" not in st.session_state:
     st.session_state.llm_model = "openai/gpt-oss-120b"
 if "checkpointer" not in st.session_state:
     st.session_state.checkpointer = InMemorySaver()
+if "message_history" not in st.session_state:
+    st.session_state["message_history"] = []
 if "chat_threads" not in st.session_state:
-    st.session_state.chat_threads = []
+    st.session_state["chat_threads"] = []
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = backend_app.conversation.generate_thread_id()
-    st.session_state.chat_threads = backend_app.conversation.add_thread(st.session_state.chat_threads, st.session_state.thread_id)
+    st.session_state["thread_id"] = backend_app.conversation.generate_thread_id()
+    if st.session_state["thread_id"] not in st.session_state["chat_threads"]:
+        st.session_state["chat_threads"].append(st.session_state["thread_id"])
 if "chat_histories" not in st.session_state:
     st.session_state.chat_histories = {st.session_state.thread_id: []}
 
@@ -127,6 +130,29 @@ with st.sidebar.expander("⚙️ Settings", expanded=False):
 uploaded = st.file_uploader("Upload a .txt file", type=["txt"]) 
 
 # Helpers
+
+def generate_thread_id():
+    return backend_app.conversation.generate_thread_id()
+
+def add_thread(thread_id: str) -> None:
+    if "chat_threads" not in st.session_state:
+        st.session_state["chat_threads"] = []
+    if thread_id not in st.session_state["chat_threads"]:
+        st.session_state["chat_threads"].append(thread_id)
+
+def reset_chat_ui() -> None:
+    tid = generate_thread_id()
+    st.session_state["thread_id"] = tid
+    add_thread(tid)
+    st.session_state["message_history"] = []
+
+def retrieve_all_threads():
+    return st.session_state.get("chat_threads", [])
+
+def load_conversation_ui(thread_id: str):
+    if not st.session_state.get("chatbot"):
+        return []
+    return backend_app.conversation.load_conversation(st.session_state["chatbot"], thread_id)
 
 def docs_from_upload(uploaded_file) -> List[Document]:
     content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
