@@ -4,7 +4,8 @@ from typing import Optional, List
 
 import streamlit as st
 from dotenv import load_dotenv
-from langgraph.checkpoint.memory import InMemorySaver
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
@@ -42,6 +43,54 @@ st.markdown("""
 
 st.title("💬 CallGPT")
 
+##################### Utilities #####################
+
+def generate_thread_id():
+    return backend_app.conversation.generate_thread_id()
+
+def add_thread(thread_id: str) -> None:
+    if "chat_threads" not in st.session_state:
+        st.session_state["chat_threads"] = []
+    if thread_id not in st.session_state["chat_threads"]:
+        st.session_state["chat_threads"].append(thread_id)
+
+def reset_chat_ui() -> None:
+    tid = generate_thread_id()
+    st.session_state["thread_id"] = tid
+    add_thread(tid)
+    st.session_state["message_history"] = []
+
+def retrieve_all_threads():
+    all_threads = set()
+    cp = st.session_state.get("checkpointer")
+    if not cp:
+        return list(all_threads)
+    try:
+        for checkpoint in cp.list(None):
+            tid = checkpoint.config.get('configurable', {}).get('thread_id')
+            if tid:
+                all_threads.add(tid)
+    except Exception:
+        pass
+    return list(all_threads)
+
+def load_conversation_ui(thread_id: str):
+    if not st.session_state.get("chatbot"):
+        return []
+    return backend_app.conversation.load_conversation(st.session_state["chatbot"], thread_id)
+
+def docs_from_upload(uploaded_file) -> List[Document]:
+    content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+    return [Document(page_content=content, metadata={"source": uploaded_file.name})]
+
+
+def make_index_dir(file_bytes: bytes) -> str:
+    h = hashlib.sha1(file_bytes).hexdigest()[:12]
+    p = os.path.join("faiss_index", "ui", h)
+    os.makedirs(p, exist_ok=True)
+    return p
+
+
 if "vstore" not in st.session_state:
     st.session_state.vstore = None
 if "index_dir" not in st.session_state:
@@ -51,17 +100,40 @@ if "embeddings_model" not in st.session_state:
 if "llm_model" not in st.session_state:
     st.session_state.llm_model = "openai/gpt-oss-120b"
 if "checkpointer" not in st.session_state:
-    st.session_state.checkpointer = InMemorySaver()
+    db_path = os.path.join('db', 'chatbot.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(database=db_path, check_same_thread=False)
+    st.session_state.checkpointer = SqliteSaver(conn=conn)
 if "message_history" not in st.session_state:
     st.session_state["message_history"] = []
 if "chat_threads" not in st.session_state:
-    st.session_state["chat_threads"] = []
+    st.session_state["chat_threads"] = retrieve_all_threads() or []
 if "thread_id" not in st.session_state:
-    st.session_state["thread_id"] = backend_app.conversation.generate_thread_id()
-    if st.session_state["thread_id"] not in st.session_state["chat_threads"]:
+    if st.session_state["chat_threads"]:
+        # Prefer an existing persisted thread so its messages can be shown immediately
+        st.session_state["thread_id"] = st.session_state["chat_threads"][0]
+    else:
+        # No persisted threads: create a fresh one and add it to the list
+        st.session_state["thread_id"] = backend_app.conversation.generate_thread_id()
         st.session_state["chat_threads"].append(st.session_state["thread_id"])
 if "chat_histories" not in st.session_state:
     st.session_state.chat_histories = {st.session_state.thread_id: []}
+
+# Ensure chatbot is available to read persisted messages on first load
+if "chatbot" not in st.session_state or st.session_state["chatbot"] is None:
+    try:
+        st.session_state["chatbot"] = backend_app.build_rag_graph(checkpointer=st.session_state.checkpointer)
+    except Exception:
+        st.session_state["chatbot"] = None
+
+# Hydrate the active thread's history from the checkpointer so messages appear after refresh
+try:
+    if st.session_state.get("chatbot"):
+        _msgs = backend_app.conversation.load_conversation(st.session_state["chatbot"], st.session_state["thread_id"])
+        _hist = backend_app.conversation.convert_messages_to_chat_history(_msgs)
+        st.session_state.chat_histories[st.session_state["thread_id"]] = _hist
+except Exception:
+    pass
 
 # ============ Sidebar: Conversation History ============
 st.sidebar.title("💬 CallGPT")
@@ -129,41 +201,6 @@ with st.sidebar.expander("⚙️ Settings", expanded=False):
 # File uploader
 uploaded = st.file_uploader("Upload a .txt file", type=["txt"]) 
 
-# Helpers
-
-def generate_thread_id():
-    return backend_app.conversation.generate_thread_id()
-
-def add_thread(thread_id: str) -> None:
-    if "chat_threads" not in st.session_state:
-        st.session_state["chat_threads"] = []
-    if thread_id not in st.session_state["chat_threads"]:
-        st.session_state["chat_threads"].append(thread_id)
-
-def reset_chat_ui() -> None:
-    tid = generate_thread_id()
-    st.session_state["thread_id"] = tid
-    add_thread(tid)
-    st.session_state["message_history"] = []
-
-def retrieve_all_threads():
-    return st.session_state.get("chat_threads", [])
-
-def load_conversation_ui(thread_id: str):
-    if not st.session_state.get("chatbot"):
-        return []
-    return backend_app.conversation.load_conversation(st.session_state["chatbot"], thread_id)
-
-def docs_from_upload(uploaded_file) -> List[Document]:
-    content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-    return [Document(page_content=content, metadata={"source": uploaded_file.name})]
-
-
-def make_index_dir(file_bytes: bytes) -> str:
-    h = hashlib.sha1(file_bytes).hexdigest()[:12]
-    p = os.path.join("faiss_index", "ui", h)
-    os.makedirs(p, exist_ok=True)
-    return p
 
 
 col1, col2 = st.columns([2, 1])

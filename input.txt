@@ -191,3 +191,35 @@ if "chat_threads" not in st.session_state:
 add_thread(st.session_state["thread_id"])
 
 ```
+
+Add sqlite memory (persistence) @web https://docs.langchain.com/oss/python/langgraph/persistence#checkpointer-libraries
+```python
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+conn = sqlite3.connect(database='chatbot.db', check_same_thread=False)
+# Checkpointer
+checkpointer = SqliteSaver(conn=conn)
+chatbot = graph.compile(checkpointer=checkpointer)
+
+def retrieve_all_threads():
+    all_threads = set()
+    for checkpoint in checkpointer.list(None):
+        all_threads.add(checkpoint.config['configurable']['thread_id'])
+
+    return list(all_threads)
+
+ CONFIG = {
+        "configurable": {"thread_id": st.session_state["thread_id"]},
+        "metadata": {
+            "thread_id": st.session_state["thread_id"]
+        },
+        "run_name": "chat_turn",
+    }
+
+chatbot.stream(
+                {'messages': [HumanMessage(content=user_input)]},
+                config= CONFIG,
+                stream_mode= 'messages'
+            )
+
+```

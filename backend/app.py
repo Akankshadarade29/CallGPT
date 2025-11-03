@@ -12,7 +12,8 @@ import os
 import argparse
 from dotenv import load_dotenv
 from uuid import uuid4
-from langgraph.checkpoint.memory import InMemorySaver
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from ._pipeline import pipeline
 
@@ -54,6 +55,7 @@ def run_rag(
     fetch_k: int = 20,
     lambda_mult: float = 0.5,
     question: str | None = None,
+    thread_id: str | None = None,
 ) -> str:
     """
     Purpose: Execute the entire RAG pipeline and return the final answer string.
@@ -80,13 +82,15 @@ def run_rag(
     """
     # Load environment (.env) if present
     load_dotenv(override=False)
-
     # Read question before graph run if not provided
     q = question if question else question_input.read_question()
 
-    # Build graph
-    checkpointer = InMemorySaver()
-    thread_id = f"cli-{uuid4()}"
+    # Build graph with persistent Sqlite checkpointer
+    db_path = os.path.join('db', 'chatbot.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(database=db_path, check_same_thread=False)
+    checkpointer = SqliteSaver(conn=conn)
+    thread_id = thread_id or f"cli-{uuid4()}"
     app = pipeline.build_rag_graph(checkpointer=checkpointer)
 
     # Build state for streaming (messages-based)
@@ -130,8 +134,29 @@ def main() -> None:
     parser.add_argument("--lambda-mult", type=float, default=0.5)
  
     parser.add_argument("--question", type=str, default=None)
+    parser.add_argument("--thread-id", type=str, default=None, help="Existing thread_id to continue the conversation")
+    parser.add_argument("--list-threads", action="store_true", help="List all persisted thread IDs and exit")
 
     args = parser.parse_args()
+
+    if args.list_threads:
+        # List persisted thread IDs from sqlite checkpointer
+        db_path = os.path.join('db', 'chatbot.db')
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(database=db_path, check_same_thread=False)
+        checkpointer = SqliteSaver(conn=conn)
+        seen = set()
+        for cp in checkpointer.list(None):
+            try:
+                tid = cp.config.get('configurable', {}).get('thread_id')
+                if tid:
+                    seen.add(tid)
+            except Exception:
+                continue
+        print("\nPersisted threads:")
+        for tid in sorted(seen):
+            print("-", tid)
+        return
 
     answer = run_rag(
         input_path=args.input,
@@ -145,6 +170,7 @@ def main() -> None:
         fetch_k=args.fetch_k,
         lambda_mult=args.lambda_mult, 
         question=args.question,
+        thread_id=args.thread_id,
     )
 
     print("\n=== Answer ===\n")

@@ -10,7 +10,7 @@ This module provides utilities to:
 
 from uuid import uuid4
 from typing import List, Dict, Any, Optional
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, AIMessageChunk
 
 
 def generate_thread_id() -> str:
@@ -97,13 +97,15 @@ def convert_messages_to_chat_history(messages: List[BaseMessage]) -> List[Dict[s
     - None.
 
     Examples:
-    >>> msgs = [HumanMessage(content="Hi"), AIMessage(content="Hello")]
-    >>> converted = convert_messages_to_chat_history(msgs)
-    >>> converted[0]['role']
+    msgs = [HumanMessage(content="Hi"), AIMessage(content="Hello")]
+    converted = convert_messages_to_chat_history(msgs)
+    converted[0]['role']
     'user'
     """
     chat_history = []
     for msg in messages:
+        if isinstance(msg, AIMessageChunk):
+            continue
         if isinstance(msg, HumanMessage):
             role = "user"
         elif isinstance(msg, AIMessage):
@@ -132,10 +134,10 @@ def reset_chat(
     - None (returns new values, caller must persist).
 
     Examples:
-    >>> threads = ["thread-1"]
-    >>> histories = {"thread-1": [{"role": "user", "content": "Hi"}]}
-    >>> new_tid, new_threads, new_histories = reset_chat(threads, histories)
-    >>> len(new_threads)
+    threads = ["thread-1"]
+    histories = {"thread-1": [{"role": "user", "content": "Hi"}]}
+    new_tid, new_threads, new_histories = reset_chat(threads, histories)
+    len(new_threads)
     2
     """
     new_thread_id = generate_thread_id()
