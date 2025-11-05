@@ -8,7 +8,6 @@ import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from langchain_core.documents import Document
-from langchain_community.vectorstores import FAISS
 
 import backend.app as backend_app
 from langchain_core.messages import HumanMessage, AIMessage
@@ -84,21 +83,18 @@ def docs_from_upload(uploaded_file) -> List[Document]:
     return [Document(page_content=content, metadata={"source": uploaded_file.name})]
 
 
-def make_index_dir(file_bytes: bytes) -> str:
-    h = hashlib.sha1(file_bytes).hexdigest()[:12]
-    p = os.path.join("faiss_index", "ui", h)
-    os.makedirs(p, exist_ok=True)
-    return p
+ 
 
 
 if "vstore" not in st.session_state:
     st.session_state.vstore = None
-if "index_dir" not in st.session_state:
-    st.session_state.index_dir = None 
+if "index_name" not in st.session_state:
+    st.session_state.index_name = "langchain-test-index"
 if "embeddings_model" not in st.session_state:
     st.session_state.embeddings_model = "sentence-transformers/all-MiniLM-L6-v2"
 if "llm_model" not in st.session_state:
     st.session_state.llm_model = "openai/gpt-oss-120b"
+ 
 if "checkpointer" not in st.session_state:
     db_path = os.path.join('db', 'chatbot.db')
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -196,7 +192,12 @@ with st.sidebar.expander("⚙️ Settings", expanded=False):
     fetch_k = st.slider("Fetch-K (MMR)", 5, 50, 20)
     lambda_mult = st.slider("Lambda (MMR)", 0.0, 1.0, 0.5, 0.05)
     
-    persist = st.checkbox("Persist FAISS to disk", value=True)
+    index_name = st.text_input("Pinecone Index Name", value=st.session_state.index_name)
+
+    # Sync back to session
+    st.session_state.llm_model = llm_model
+    st.session_state.embeddings_model = emb_model
+    st.session_state.index_name = index_name
 
 # File uploader
 uploaded = st.file_uploader("Upload a .txt file", type=["txt"]) 
@@ -216,16 +217,14 @@ with col1:
                 chunks = backend_app.chunking.chunk_documents(docs)
                 emb_model_obj = backend_app.embeddings.get_embedding_model(emb_model or None)
 
-                if persist:
-                    idx_dir = make_index_dir(uploaded.getvalue())
-                    backend_app.vectorstore_faiss.build_faiss_from_documents(chunks, emb_model_obj, index_dir=idx_dir)
-                    vstore = backend_app.vectorstore_faiss.load_faiss(idx_dir, emb_model_obj)
-                    st.session_state.index_dir = idx_dir
-                else:
-                    vstore = FAISS.from_documents(chunks, emb_model_obj)
-                    st.session_state.index_dir = None
+                # Pinecone-only: Build/update Pinecone index
+                backend_app.vectorstore_pinecone.build_pinecone_from_documents(
+                    chunks,
+                    emb_model_obj,
+                    index_name=st.session_state.index_name,
+                )
+                st.session_state.vstore = f"pinecone:{st.session_state.index_name}"
 
-                st.session_state.vstore = vstore 
                 st.session_state.embeddings_model = emb_model or None
                 st.session_state.llm_model = llm_model or None
 
@@ -252,8 +251,7 @@ with col1:
 with col2:
     st.subheader("Status")
     st.write("Index:", "Ready" if st.session_state.vstore is not None else "Not built")
-    if st.session_state.index_dir:
-        st.write("Index dir:", st.session_state.index_dir)
+    st.write("Index name:", st.session_state.index_name)
 
 st.divider()
 
@@ -277,13 +275,13 @@ if user_input:
         st.markdown(user_input)
 
     # Ensure index and chatbot are ready
-    if not st.session_state.get("index_dir") or not st.session_state.get("input_path"):
-        st.warning("Please build the index with an uploaded file first (Persist recommended).")
+    if not st.session_state.get("input_path") or not st.session_state.get("index_name"):
+        st.warning("Please build the index with an uploaded file first.")
     else:
         try:
             base_state = {
                 "input_path": st.session_state.get("input_path"),
-                "index_dir": st.session_state.get("index_dir"),
+                "index_name": st.session_state.get("index_name"),
                 "rebuild": False,
                 "embeddings_model": st.session_state.get("embeddings_model"),
                 "llm_model": st.session_state.get("llm_model"),

@@ -7,7 +7,6 @@ vapi-server-sdk
 
 # RAG Application Dependencies (Simplified)
 langchain>=0.1.0
-faiss-cpu
 scikit-learn
 numpy
 pandas
@@ -16,3 +15,5 @@ python-dotenv
 sentence-transformers
 streamlit
 langgraph-checkpoint-sqlite
+pinecone
+langchain-pinecone

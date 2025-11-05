@@ -18,7 +18,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from ._pipeline import pipeline
 
  
-from . import question_input, streaming, chunking, embeddings, vectorstore_faiss, conversation
+from . import question_input, streaming, chunking, embeddings, conversation, vectorstore_pinecone
 # from ._pipeline import build_rag_graph
 
 # Re-export build_rag_graph for convenience
@@ -30,7 +30,7 @@ __all__ = [
     # feature modules re-exported for UI convenience
     "chunking",
     "embeddings",
-    "vectorstore_faiss",
+    "vectorstore_pinecone",
     "conversation",
     "streaming",
 ]
@@ -45,7 +45,7 @@ def _need_rebuild(index_dir: str) -> bool:
 
 def run_rag(
     input_path: str,
-    index_dir: str = "faiss_index",
+    index_name: str = "langchain-test-index",
     rebuild: bool = False,
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2", 
     llm_model: str = "openai/gpt-oss-120b",
@@ -96,7 +96,7 @@ def run_rag(
     # Build state for streaming (messages-based)
     base_state = {
         "input_path": input_path,
-        "index_dir": index_dir,
+        "index_name": index_name,
         "rebuild": rebuild,
         "embeddings_model": embeddings_model,
         "llm_model": llm_model,
@@ -120,8 +120,8 @@ def run_rag(
 def main() -> None:
     parser = argparse.ArgumentParser(description="CallGPT")
     parser.add_argument("--input", type=str, default="input.txt", help="Path to input .txt file")
-    parser.add_argument("--index-dir", type=str, default="faiss_index", help="Directory for FAISS index")
-    parser.add_argument("--rebuild", action="store_true", help="Force rebuild FAISS index")
+    parser.add_argument("--index-name", type=str, default="langchain-test-index", help="Pinecone index name")
+    parser.add_argument("--rebuild", action="store_true", help="Force rebuild Pinecone index (upsert chunks)")
  
     parser.add_argument("--embeddings-model", type=str, default="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -160,7 +160,7 @@ def main() -> None:
 
     answer = run_rag(
         input_path=args.input,
-        index_dir=args.index_dir,
+        index_name=args.index_name,
         rebuild=args.rebuild,
         embeddings_model=args.embeddings_model, 
         llm_model=args.llm_model,

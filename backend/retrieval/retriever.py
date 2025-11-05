@@ -1,14 +1,13 @@
 from typing import Any, Dict, List
 from langchain_core.documents import Document
-from langchain_community.vectorstores import FAISS
 
 
-def get_retriever(vstore: FAISS, search_type: str = "mmr", **search_kwargs) -> Any:
+def get_retriever(vstore: Any, search_type: str = "mmr", **search_kwargs) -> Any:
     """
     Purpose: Create a retriever from a FAISS vector store.
 
     Parameters:
-    - vstore (FAISS): The FAISS vector store instance.
+    - vstore (Any): The vector store instance.
     - search_type (str): One of {"mmr", "similarity"}.
     - **search_kwargs: Additional search parameters passed to `as_retriever`.
 

@@ -223,3 +223,74 @@ chatbot.stream(
             )
 
 ```
+
+Migrate from faiss(local) to pinecone(cloud)
+@web https://docs.langchain.com/oss/python/integrations/vectorstores/pinecone
+Initialization
+```python
+from pinecone import ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
+
+# in future, index_name will be organisation name
+index_name = "langchain-test-index"  
+
+if not pc.has_index(index_name):
+    pc.create_index(
+        name=index_name,
+        dimension=1536,
+        metric="cosine",
+        spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+    )
+
+index = pc.Index(index_name)
+
+vector_store = PineconeVectorStore(index=index, embedding=embeddings)
+
+Add docs with 'add_documents' method.
+The docs are the chunks data from the sources
+```python
+from langchain_core.documents import Document
+
+document_1 = Document(
+    page_content="I had chocolate chip pancakes and scrambled eggs for breakfast this morning.",
+    metadata={"source": "tweet"},
+)
+
+document_2 = Document(
+    page_content="The weather forecast for tomorrow is cloudy and overcast, with a high of 62 degrees.",
+    metadata={"source": "news"},
+)
+docs = [
+    document_1,
+    document_2,
+]
+emb_id = str(uuid4()) # this id can be manage 
+uuids = [ emb_id + str(i) for i in range(len(documents))]
+vector_store.add_documents(documents=documents, ids=uuids)
+```
+
+The embeddings Generate with Huggingface
+```python   
+from langchain_huggingface import HuggingFaceEmbeddings
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+```
+The documents is store with the 
+from langchain_pinecone import PineconeVectorStore
+vector_store = PineconeVectorStore(index=index, embedding=embeddings)
+
+query to vectorstores
+```python
+results = vector_store.similarity_search_with_score(
+    "Will it be hot tomorrow?", k=3, filter={"source": emb_id}
+)
+for res, score in results:
+    print(f"* [SIM={score:3f}] {res.page_content} [{res.metadata}]")
+
+```
+Also with retriver feature
+```python
+retriever = vector_store.as_retriever(
+    search_type="similarity_score_threshold",
+    search_kwargs={"k": 1, "score_threshold": 0.4},
+)
+retriever.invoke("Stealing from the bank is a crime", filter={"source": "news"})

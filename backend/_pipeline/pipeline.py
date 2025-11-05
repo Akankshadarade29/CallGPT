@@ -1,23 +1,21 @@
 from __future__ import annotations
-
-import os
 from typing import Any, Dict, List, Optional, TypedDict
 from typing import Annotated, Sequence
 
 from langgraph.graph import StateGraph, START, END
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_community.vectorstores import FAISS
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, AIMessageChunk
 
-from .. import input_text, chunking, embeddings, vectorstore_faiss, retrieval, prompt_templates, llms
+from .. import input_text, chunking, embeddings, retrieval, prompt_templates, llms, vectorstore_pinecone
 
 
 class RAGState(TypedDict, total=False):
     # Inputs / config
     input_path: str
-    index_dir: str
+    index_name: str
+    vector_backend: str  # 'pinecone' only
     rebuild: bool
 
     embeddings_model: str
@@ -41,16 +39,6 @@ class RAGState(TypedDict, total=False):
     chunks: List[Document]
     answer: str
 
-
-essential_files = {"index.faiss", "index.pkl"}
-
-
-def _need_rebuild(index_dir: str) -> bool:
-    return not os.path.isdir(index_dir) or any(
-        not os.path.exists(os.path.join(index_dir, f)) for f in essential_files
-    )
-
-
 # Nodes
 
 def node_load(state: RAGState) -> Dict[str, Any]:
@@ -69,12 +57,13 @@ def node_embeddings(state: RAGState) -> Dict[str, Any]:
 
 
 def node_vectorstore(state: RAGState) -> Dict[str, Any]:
-    index_dir = state.get("index_dir", "faiss_index")
-    # Create embeddings model ephemerally
+    # Pinecone-only: build/upsert when explicitly requested via rebuild
     emb = embeddings.get_embedding_model(state.get("embeddings_model"))
-    if state.get("rebuild", False) or _need_rebuild(index_dir):
-        vectorstore_faiss.build_faiss_from_documents(state["chunks"], emb, index_dir=index_dir,)
-    # Do not return vstore to state; it's not serializable. Loading will be repeated where needed.
+    if state.get("rebuild", False):
+        index_name = state.get("index_name", "langchain-test-index")
+        vectorstore_pinecone.build_pinecone_from_documents(
+            state["chunks"], emb, index_name=index_name
+        )
     return {}
 
 
@@ -90,9 +79,9 @@ def node_llm(state: RAGState) -> Dict[str, Any]:
 
 def node_answer(state: RAGState):
     prompt = prompt_templates.get_qa_prompt()
-    # Ephemerally load vectorstore and create retriever
+    # Ephemerally load vectorstore and create retriever (Pinecone-only)
     emb = embeddings.get_embedding_model(state.get("embeddings_model"))
-    vstore = vectorstore_faiss.load_faiss(state.get("index_dir", "faiss_index"), emb)
+    vstore = vectorstore_pinecone.load_pinecone(state.get("index_name", "langchain-test-index"), emb)
     if state.get("search_type", "mmr") == "mmr":
         retriever = retrieval.get_retriever(
             vstore,
