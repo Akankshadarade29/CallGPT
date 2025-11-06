@@ -1,13 +1,14 @@
 from typing import Any, Dict, List
 from langchain_core.documents import Document
+from ..vectorstore_pinecone.types import PineconeVectorStoreProtocol
 
 
-def get_retriever(vstore: Any, search_type: str = "mmr", **search_kwargs) -> Any:
+def get_retriever(vstore: PineconeVectorStoreProtocol, search_type: str = "mmr", **search_kwargs) -> Any:
     """
-    Purpose: Create a retriever from a FAISS vector store.
+    Purpose: Create a retriever from a vector store.
 
     Parameters:
-    - vstore (Any): The vector store instance.
+    - vstore (PineconeVectorStoreProtocol): The vector store instance.
     - search_type (str): One of {"mmr", "similarity"}.
     - **search_kwargs: Additional search parameters passed to `as_retriever`.
 
@@ -38,6 +39,6 @@ def retrieve(retriever: Any, query: str) -> List[Document]:
     - None.
 
     Examples:
-    # docs = retrieve(retriever, "What is FAISS?")  
+    # docs = retrieve(retriever, "What is RAG?")  
     """
     return retriever.invoke(query)

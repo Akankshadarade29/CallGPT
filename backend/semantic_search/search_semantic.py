@@ -1,9 +1,10 @@
-from typing import List, Any
+from typing import List
 from langchain_core.documents import Document
+from ..vectorstore_pinecone.types import PineconeVectorStoreProtocol
 
 
 def mmr_search(
-    vstore: Any,
+    vstore: PineconeVectorStoreProtocol,
     query: str,
     k: int = 4,
     fetch_k: int = 20,
@@ -13,7 +14,7 @@ def mmr_search(
     Purpose: Run Max Marginal Relevance (MMR) search for diverse, semantically-relevant results.
 
     Parameters:
-    - vstore (Any): The vector store.
+    - vstore (PineconeVectorStoreProtocol): The vector store.
     - query (str): Natural language query.
     - k (int): Number of final results.
     - fetch_k (int): How many candidates to fetch before MMR filtering.

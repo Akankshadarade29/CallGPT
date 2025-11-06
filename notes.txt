@@ -1,5 +1,1 @@
 1. Which provider do you prefer for STT/TTS? -> TTS=elevenlabs api and STT=assembly ai api
-2. Where does your knowledge live today (FAQs, PDFs, policy docs, CRM notes)? -> txt files, pdf files.
-3. Do you need bilingual support? ->only english (for now)
-4. What are the policy triggers for mandatory escalation? -> i dont undersntad quesiton
-5. Are we OK to start with FAISS/Chroma locally and upgrade later? -> start with FAISS, but later use vectorDb like pincone, weavelite
