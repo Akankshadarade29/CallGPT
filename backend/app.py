@@ -18,7 +18,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from ._pipeline import pipeline
 
  
-from . import question_input, streaming, chunking, embeddings, conversation, vectorstore_pinecone
+from . import question_input, streaming, chunking, embeddings, conversation, vectorstore_supabase
 # from ._pipeline import build_rag_graph
 
 # Re-export build_rag_graph for convenience
@@ -30,7 +30,7 @@ __all__ = [
     # feature modules re-exported for UI convenience
     "chunking",
     "embeddings",
-    "vectorstore_pinecone",
+    "vectorstore_supabase",
     "conversation",
     "streaming",
 ]
@@ -45,7 +45,8 @@ def _need_rebuild(index_dir: str) -> bool:
 
 def run_rag(
     input_path: str,
-    index_name: str = "langchain-test-index",
+    table_name: str = "documents",
+    query_name: str = "match_documents",
     rebuild: bool = False,
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2", 
     llm_model: str = "openai/gpt-oss-120b",
@@ -96,7 +97,8 @@ def run_rag(
     # Build state for streaming (messages-based)
     base_state = {
         "input_path": input_path,
-        "index_name": index_name,
+        "table_name": table_name,
+        "query_name": query_name,
         "rebuild": rebuild,
         "embeddings_model": embeddings_model,
         "llm_model": llm_model,
@@ -120,8 +122,9 @@ def run_rag(
 def main() -> None:
     parser = argparse.ArgumentParser(description="CallGPT")
     parser.add_argument("--input", type=str, default="input.txt", help="Path to input .txt file")
-    parser.add_argument("--index-name", type=str, default="langchain-test-index", help="Pinecone index name")
-    parser.add_argument("--rebuild", action="store_true", help="Force rebuild Pinecone index (upsert chunks)")
+    parser.add_argument("--table-name", type=str, default="documents", help="Supabase table for pgvector")
+    parser.add_argument("--query-name", type=str, default="match_documents", help="Supabase RPC name for vector search")
+    parser.add_argument("--rebuild", action="store_true", help="Upsert chunks into Supabase (pgvector)")
  
     parser.add_argument("--embeddings-model", type=str, default="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -160,7 +163,8 @@ def main() -> None:
 
     answer = run_rag(
         input_path=args.input,
-        index_name=args.index_name,
+        table_name=args.table_name,
+        query_name=args.query_name,
         rebuild=args.rebuild,
         embeddings_model=args.embeddings_model, 
         llm_model=args.llm_model,

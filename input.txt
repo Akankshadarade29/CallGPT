@@ -224,28 +224,23 @@ chatbot.stream(
 
 ```
 
-Migrate from faiss(local) to pinecone(cloud)
-@web https://docs.langchain.com/oss/python/integrations/vectorstores/pinecone
+Migrate from pinecone(cloud) to Supabase(cloud)
+@web https://docs.langchain.com/oss/python/integrations/vectorstores/supabase
 Initialization
 ```python
-from pinecone import ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
+import os
 
-# in future, index_name will be organisation name
-index_name = "langchain-test-index"  
+from langchain_community.vectorstores import SupabaseVectorStore
+from supabase.client import Client, create_client
 
-if not pc.has_index(index_name):
-    pc.create_index(
-        name=index_name,
-        dimension=1536,
-        metric="cosine",
-        spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-    )
+supabase_url = os.environ.get("SUPABASE_URL")
+supabase_api_key = os.environ.get("SUPABASE_API_KEY")
+supabase: Client = create_client(supabase_url, supabase_api_key)
+```
 
-index = pc.Index(index_name)
 
-vector_store = PineconeVectorStore(index=index, embedding=embeddings)
 
+---- (USE THE BEST SUITABLE ONE) ----
 Add docs with 'add_documents' method.
 The docs are the chunks data from the sources
 ```python
@@ -266,31 +261,60 @@ docs = [
 ]
 emb_id = str(uuid4()) # this id can be manage 
 uuids = [ emb_id + str(i) for i in range(len(documents))]
-vector_store.add_documents(documents=documents, ids=uuids)
+
+vector_store = SupabaseVectorStore.from_documents(
+    docs,
+    embeddings, # HuggingFaceEmbeddings
+    client=supabase,
+    table_name="documents",
+    query_name="match_documents",
+    chunk_size=500,
+)
+```
+Alternate way to store embedding without storing docs
+```python
+Alternatively if you already have documents with embeddings in your database, simply instantiate a new SupabaseVectorStore directly:
+
+Copy
+
+Ask AI
+vector_store = SupabaseVectorStore(
+    embedding=embeddings,
+    client=supabase,
+    table_name="documents",
+    query_name="match_documents",
+)
 ```
 
 The embeddings Generate with Huggingface
 ```python   
 from langchain_huggingface import HuggingFaceEmbeddings
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-```
-The documents is store with the 
-from langchain_pinecone import PineconeVectorStore
-vector_store = PineconeVectorStore(index=index, embedding=embeddings)
+``` 
 
-query to vectorstores
+TO search with user_input
 ```python
-results = vector_store.similarity_search_with_score(
-    "Will it be hot tomorrow?", k=3, filter={"source": emb_id}
-)
-for res, score in results:
-    print(f"* [SIM={score:3f}] {res.page_content} [{res.metadata}]")
-
+query = "What did the president say about Ketanji Brown Jackson"
+matched_docs = vector_store.similarity_search(query)
+print(matched_docs[0].page_content)
 ```
-Also with retriver feature
+
+Retriever options
+This section goes over different options for how to use SupabaseVectorStore as a retriever.
 ```python
-retriever = vector_store.as_retriever(
-    search_type="similarity_score_threshold",
-    search_kwargs={"k": 1, "score_threshold": 0.4},
-)
-retriever.invoke("Stealing from the bank is a crime", filter={"source": "news"})
+retriever = vector_store.as_retriever(search_type="mmr")
+
+matched_docs = retriever.invoke(query)
+
+for i, d in enumerate(matched_docs):
+    print(f"\n## Document {i}\n")
+    print(d.page_content)
+```
+
+==============================================
+error occurred
+------------------------------------
+Chat failed: 'SyncRPCFilterRequestBuilder' object has no attribute 'params'
+
+@web https://supabase.com/docs/guides/ai/vector-columns?queryGroups=database-method&database-method=dashboard#querying-a-vector--embedding
+==============================================

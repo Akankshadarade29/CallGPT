@@ -1,14 +1,14 @@
 from typing import Any, Dict, List
 from langchain_core.documents import Document
-from ..vectorstore_pinecone.types import PineconeVectorStoreProtocol
+from ..vectorstore_supabase.types import SupabaseVectorStoreProtocol
 
 
-def get_retriever(vstore: PineconeVectorStoreProtocol, search_type: str = "mmr", **search_kwargs) -> Any:
+def get_retriever(vstore: SupabaseVectorStoreProtocol, search_type: str = "mmr", **search_kwargs) -> Any:
     """
     Purpose: Create a retriever from a vector store.
 
     Parameters:
-    - vstore (PineconeVectorStoreProtocol): The vector store instance.
+    - vstore (SupabaseVectorStoreProtocol): The vector store instance.
     - search_type (str): One of {"mmr", "similarity"}.
     - **search_kwargs: Additional search parameters passed to `as_retriever`.
 

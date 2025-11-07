@@ -1,8 +1,7 @@
 from typing import Any, Dict, List, Protocol
 from langchain_core.documents import Document
 
-
-class PineconeVectorStoreProtocol(Protocol):
+class SupabaseVectorStoreProtocol(Protocol):
     def as_retriever(self, *, search_type: str, search_kwargs: Dict[str, Any]) -> Any: ...
 
     def max_marginal_relevance_search(

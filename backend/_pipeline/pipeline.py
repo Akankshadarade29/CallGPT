@@ -8,14 +8,14 @@ from langchain_core.embeddings import Embeddings
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, AIMessageChunk
 
-from .. import input_text, chunking, embeddings, retrieval, prompt_templates, llms, vectorstore_pinecone
+from .. import input_text, chunking, embeddings, retrieval, prompt_templates, llms, vectorstore_supabase
 
 
 class RAGState(TypedDict, total=False):
     # Inputs / config
     input_path: str
-    index_name: str
-    vector_backend: str  # 'pinecone' only
+    table_name: str
+    query_name: str
     rebuild: bool
 
     embeddings_model: str
@@ -57,12 +57,13 @@ def node_embeddings(state: RAGState) -> Dict[str, Any]:
 
 
 def node_vectorstore(state: RAGState) -> Dict[str, Any]:
-    # Pinecone-only: build/upsert when explicitly requested via rebuild
+    # Supabase-only: upsert when explicitly requested via rebuild
     emb = embeddings.get_embedding_model(state.get("embeddings_model"))
     if state.get("rebuild", False):
-        index_name = state.get("index_name", "langchain-test-index")
-        vectorstore_pinecone.build_pinecone_from_documents(
-            state["chunks"], emb, index_name=index_name
+        table_name = state.get("table_name", "documents")
+        query_name = state.get("query_name", "match_documents")
+        vectorstore_supabase.build_supabase_from_documents(
+            state["chunks"], emb, table_name=table_name, query_name=query_name
         )
     return {}
 
@@ -79,9 +80,13 @@ def node_llm(state: RAGState) -> Dict[str, Any]:
 
 def node_answer(state: RAGState):
     prompt = prompt_templates.get_qa_prompt()
-    # Ephemerally load vectorstore and create retriever (Pinecone-only)
+    # Ephemerally load vectorstore and create retriever (Supabase)
     emb = embeddings.get_embedding_model(state.get("embeddings_model"))
-    vstore = vectorstore_pinecone.load_pinecone(state.get("index_name", "langchain-test-index"), emb)
+    vstore = vectorstore_supabase.load_supabase(
+        state.get("table_name", "documents"),
+        emb,
+        query_name=state.get("query_name", "match_documents"),
+    )
     if state.get("search_type", "mmr") == "mmr":
         retriever = retrieval.get_retriever(
             vstore,

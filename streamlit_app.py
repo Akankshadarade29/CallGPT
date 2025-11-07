@@ -88,8 +88,10 @@ def docs_from_upload(uploaded_file) -> List[Document]:
 
 if "vstore" not in st.session_state:
     st.session_state.vstore = None
-if "index_name" not in st.session_state:
-    st.session_state.index_name = "langchain-test-index"
+if "table_name" not in st.session_state:
+    st.session_state.table_name = "documents"
+if "query_name" not in st.session_state:
+    st.session_state.query_name = "match_documents"
 if "embeddings_model" not in st.session_state:
     st.session_state.embeddings_model = "sentence-transformers/all-MiniLM-L6-v2"
 if "llm_model" not in st.session_state:
@@ -192,12 +194,14 @@ with st.sidebar.expander("⚙️ Settings", expanded=False):
     fetch_k = st.slider("Fetch-K (MMR)", 5, 50, 20)
     lambda_mult = st.slider("Lambda (MMR)", 0.0, 1.0, 0.5, 0.05)
     
-    index_name = st.text_input("Pinecone Index Name", value=st.session_state.index_name)
+    table_name = st.text_input("Supabase Table", value=st.session_state.table_name)
+    query_name = st.text_input("Supabase RPC (query)", value=st.session_state.query_name)
 
     # Sync back to session
     st.session_state.llm_model = llm_model
     st.session_state.embeddings_model = emb_model
-    st.session_state.index_name = index_name
+    st.session_state.table_name = table_name
+    st.session_state.query_name = query_name
 
 # File uploader
 uploaded = st.file_uploader("Upload a .txt file", type=["txt"]) 
@@ -217,13 +221,14 @@ with col1:
                 chunks = backend_app.chunking.chunk_documents(docs)
                 emb_model_obj = backend_app.embeddings.get_embedding_model(emb_model or None)
 
-                # Pinecone-only: Build/update Pinecone index
-                backend_app.vectorstore_pinecone.build_pinecone_from_documents(
+                # Supabase: Upsert documents + embeddings into pgvector
+                backend_app.vectorstore_supabase.build_supabase_from_documents(
                     chunks,
                     emb_model_obj,
-                    index_name=st.session_state.index_name,
+                    table_name=st.session_state.table_name,
+                    query_name=st.session_state.query_name,
                 )
-                st.session_state.vstore = f"pinecone:{st.session_state.index_name}"
+                st.session_state.vstore = f"supabase:{st.session_state.table_name}"
 
                 st.session_state.embeddings_model = emb_model or None
                 st.session_state.llm_model = llm_model or None
@@ -251,7 +256,8 @@ with col1:
 with col2:
     st.subheader("Status")
     st.write("Index:", "Ready" if st.session_state.vstore is not None else "Not built")
-    st.write("Index name:", st.session_state.index_name)
+    st.write("Table:", st.session_state.table_name)
+    st.write("RPC:", st.session_state.query_name)
 
 st.divider()
 
@@ -275,13 +281,14 @@ if user_input:
         st.markdown(user_input)
 
     # Ensure index and chatbot are ready
-    if not st.session_state.get("input_path") or not st.session_state.get("index_name"):
+    if not st.session_state.get("input_path") or not st.session_state.get("table_name"):
         st.warning("Please build the index with an uploaded file first.")
     else:
         try:
             base_state = {
                 "input_path": st.session_state.get("input_path"),
-                "index_name": st.session_state.get("index_name"),
+                "table_name": st.session_state.get("table_name"),
+                "query_name": st.session_state.get("query_name"),
                 "rebuild": False,
                 "embeddings_model": st.session_state.get("embeddings_model"),
                 "llm_model": st.session_state.get("llm_model"),
