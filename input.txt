@@ -318,3 +318,108 @@ Chat failed: 'SyncRPCFilterRequestBuilder' object has no attribute 'params'
 
 @web https://supabase.com/docs/guides/ai/vector-columns?queryGroups=database-method&database-method=dashboard#querying-a-vector--embedding
 ==============================================
+
+
+--- store the Files (of which the emmbeddings are created) in supabase
+with the Original file_name as 'Notes.txt'.
+with the product of Supabase => 'Storage'
+
+@web https://supabase.com/docs/guides/storage/buckets/fundamentals
+
+## Creating Buckets
+You can create a bucket using the Supabase Dashboard. Since storage is interoperable with your Postgres database, you can also use SQL or our client libraries.
+Here we create a bucket called "bucket_name"
+```python   
+bucket_name = "openai-bucket"
+supabase.storage.create_bucket(
+  bucket_name,
+  options={"public": True}
+)
+
+```
+Uploading#
+The standard file upload method is ideal for small files that are not larger than 6MB.
+
+It uses the traditional multipart/form-data format and is simple to implement using the supabase-js SDK. Here's an example of how to upload a file using the standard upload method:
+Though you can upload up to 5GB files using the standard upload method, we recommend using TUS Resumable Upload for uploading files greater than 6MB in size for better reliability.
+
+```Python
+response = supabase.storage.from_(bucket_name).upload('file_path', file)
+```
+
+-- Overwriting files
+When uploading a file to a path that already exists, the default behavior is to return a 400 Asset Already Exists error.
+If you want to overwrite a file on a specific path you can set the upsert options to true or using the x-upsert header.
+
+
+```Python
+response = supabase.storage.from_(bucket_name).upload('file_path', file, {
+  'upsert': 'true',
+})
+```
+
+-- Content type
+By default, Storage will assume the content type of an asset from the file extension. If you want to specify the content type for your asset, pass the contentType option during upload.
+
+
+```Python
+response = supabase.storage.from_('bucket_name').upload('file_path', file, {
+  'content-type': 'image/jpeg',
+})
+```
+
+-- Resumable Upload (bucket-supabase) @web https://supabase.com/docs/guides/storage/uploads/resumable-uploads
+The resumable upload method is recommended when:
+
+Uploading large files that may exceed 6MB in size
+Network stability is a concern
+You want to have progress events for your uploads
+
+```Python
+from io import BufferedReader
+from tusclient import client
+from supabase import create_client
+import os
+
+access_token = os.getenv(SUPABASE_ACCESS_TOEKN)
+def upload_file(
+    bucket_name: str, file_name: str, file: BufferedReader, access_token: str
+):
+    # create Tus client
+    my_client = client.TusClient(
+        f"{supabase_url}/storage/v1/upload/resumable",
+        headers={"Authorization": f"Bearer {access_token}", "x-upsert": "true"},
+    )
+    uploader = my_client.uploader(
+        file_stream=file,
+        chunk_size=(6 * 1024 * 1024),
+        metadata={
+            "bucketName": bucket_name,
+            "objectName": file_name,
+            "contentType": "image/png",
+            "cacheControl": "3600",
+        },
+    )
+    uploader.upload()
+
+# create client and sign in
+supabase = create_client(supabase_url, supabase_key)
+
+# retrieve the current user's session for authentication
+session = supabase.auth.get_session()
+
+# open file and send file stream to upload
+with open("./assets/40mb.jpg", "rb") as fs:
+    upload_file(
+        bucket_name="assets",
+        file_name="large_file",
+        file=fs,
+        access_token=session.access_token,
+    )
+
+```
+
+
+
+
+

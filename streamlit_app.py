@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 
 import backend.app as backend_app
 from langchain_core.messages import HumanMessage, AIMessage
+from backend.storage import supabase_storage as sstore
 
 
 load_dotenv(override=False)
@@ -239,6 +240,25 @@ with col1:
                     file_bytes = uploaded.getvalue()
                     content_full = file_bytes.decode("utf-8", errors="ignore")
                     h = hashlib.sha1(file_bytes).hexdigest()[:12]
+                    # Supabase Storage: ensure bucket, upload file (use provided filename), fetch/store metadata
+                    # Bucket name from environment variable (SUPABASE_BUCKET) or defaults to 'user-files'
+                    bucket_name = sstore.get_bucket_name()
+                    sstore.ensure_bucket_exists(bucket_name, public=True)
+                    obj_name = uploaded.name 
+                    upload_res = sstore.upload_text_bytes(
+                        bucket_name=bucket_name,
+                        object_name=obj_name,
+                        data=file_bytes,
+                        upsert=True,
+                    )
+                    meta = sstore.get_file_metadata(bucket_name=bucket_name, object_name=obj_name)
+                    sstore.store_metadata_record(
+                        bucket_name=bucket_name,
+                        object_name=obj_name,
+                        meta=meta,
+                        public_url=upload_res.get("public_url") if isinstance(upload_res, dict) else None,
+                    )
+
                     uploads_dir = os.path.join("uploads", "ui")
                     os.makedirs(uploads_dir, exist_ok=True)
                     input_path = os.path.join(uploads_dir, f"{h}.txt")
