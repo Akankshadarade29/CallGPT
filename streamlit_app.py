@@ -259,13 +259,7 @@ with col1:
                         public_url=upload_res.get("public_url") if isinstance(upload_res, dict) else None,
                     )
 
-                    uploads_dir = os.path.join("uploads", "ui")
-                    os.makedirs(uploads_dir, exist_ok=True)
-                    input_path = os.path.join(uploads_dir, f"{h}.txt")
-                    with open(input_path, "w", encoding="utf-8") as f:
-                        f.write(content_full)
-
-                    st.session_state.input_path = input_path
+                    # Local file persistence removed: files are stored in Supabase Storage
                     # Prepare LangGraph chatbot for chat mode
                     st.session_state.chatbot = backend_app.build_rag_graph(checkpointer=st.session_state.checkpointer)
                 except Exception as persist_e:
@@ -300,13 +294,12 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Ensure index and chatbot are ready
-    if not st.session_state.get("input_path") or not st.session_state.get("table_name"):
+    # Ensure index and chatbot are ready (no local file path required)
+    if not st.session_state.get("vstore"):
         st.warning("Please build the index with an uploaded file first.")
     else:
         try:
             base_state = {
-                "input_path": st.session_state.get("input_path"),
                 "table_name": st.session_state.get("table_name"),
                 "query_name": st.session_state.get("query_name"),
                 "rebuild": False,

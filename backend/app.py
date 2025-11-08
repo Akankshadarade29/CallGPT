@@ -18,7 +18,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from ._pipeline import pipeline
 
  
-from . import question_input, streaming, chunking, embeddings, conversation, vectorstore_supabase
+from . import question_input, streaming, chunking, embeddings, conversation, vectorstore_supabase, input_text
+from .storage import supabase_storage as sstore
 # from ._pipeline import build_rag_graph
 
 # Re-export build_rag_graph for convenience
@@ -45,8 +46,10 @@ def _need_rebuild(index_dir: str) -> bool:
 
 def run_rag(
     input_path: str,
+    # supabase vector store db
     table_name: str = "documents",
     query_name: str = "match_documents",
+    
     rebuild: bool = False,
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2", 
     llm_model: str = "openai/gpt-oss-120b",
@@ -86,6 +89,33 @@ def run_rag(
     # Read question before graph run if not provided
     q = question if question else question_input.read_question()
 
+    # If requested, build vector store and upload file to Supabase Storage
+    if rebuild:
+        docs = input_text.load_text_file(input_path)
+        chunks = chunking.chunk_documents(docs)
+        emb = embeddings.get_embedding_model(embeddings_model)
+        vectorstore_supabase.build_supabase_from_documents(
+            chunks, emb, table_name=table_name, query_name=query_name
+        )
+        with open(input_path, "rb") as f:
+            file_bytes = f.read()
+        bucket_name = sstore.get_bucket_name()
+        sstore.ensure_bucket_exists(bucket_name, public=True)
+        obj_name = os.path.basename(input_path)
+        upload_res = sstore.upload_text_bytes(
+            bucket_name=bucket_name,
+            object_name=obj_name,
+            data=file_bytes,
+            upsert=True,
+        )
+        meta = sstore.get_file_metadata(bucket_name=bucket_name, object_name=obj_name)
+        sstore.store_metadata_record(
+            bucket_name=bucket_name,
+            object_name=obj_name,
+            meta=meta,
+            public_url=upload_res.get("public_url") if isinstance(upload_res, dict) else None,
+        )
+
     # Build graph with persistent Sqlite checkpointer
     db_path = os.path.join('db', 'chatbot.db')
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -99,7 +129,7 @@ def run_rag(
         "input_path": input_path,
         "table_name": table_name,
         "query_name": query_name,
-        "rebuild": rebuild,
+        "rebuild": False,
         "embeddings_model": embeddings_model,
         "llm_model": llm_model,
         "temperature": temperature,

@@ -420,6 +420,22 @@ with open("./assets/40mb.jpg", "rb") as fs:
 ```
 
 
+-------------------------------------------------------------------
+To store the file, we need to store the metadata of the file in the database.
 
+so the database struture is as follows:
+https://supabase.com/docs/img/storage/schema-design.png
+
+create the sql code to create the db table structure on supabase.
+
+As per the official supabase docs
+
+Steps:
+1. Create a bucket  
+2. Upload the file to the bucket
+3. Get the file metadata
+4. Store the metadata in the database
+
+ 
 
 

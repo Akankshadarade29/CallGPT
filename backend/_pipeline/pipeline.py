@@ -42,12 +42,14 @@ class RAGState(TypedDict, total=False):
 # Nodes
 
 def node_load(state: RAGState) -> Dict[str, Any]:
-    docs = input_text.load_text_file(state["input_path"])
-    return {"docs": docs}
+    return {"docs": []}
 
 
 def node_chunk(state: RAGState) -> Dict[str, Any]:
-    chunks = chunking.chunk_documents(state["docs"])  # default params
+    docs = state.get("docs", [])
+    if not docs:
+        return {"chunks": []}
+    chunks = chunking.chunk_documents(docs)
     return {"chunks": chunks}
 
 
